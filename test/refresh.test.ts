@@ -1,8 +1,8 @@
 import { assert, describe, it } from '@effect/vitest';
-import { Platform, Storage } from '@ericminassian/platform';
+import { Db, Platform, Storage } from '@ericminassian/platform';
 import { Effect, Layer, Option } from 'effect';
 import { TestClock } from 'effect/testing';
-import { FeedStore } from '../src/feeds.ts';
+import { FeedState, FeedStore } from '../src/feeds.ts';
 import { Sources } from '../src/ingest/index.ts';
 import { isDue, Refresher } from '../src/refresh.ts';
 import { fakeHttp, recorded, type Upstream } from './support.ts';
@@ -37,6 +37,17 @@ describe('refresh', () => {
       yield* refresher.refresh('earthquakes');
       yield* TestClock.adjust('5 minutes');
       assert.deepStrictEqual(yield* refresher.tick, ['earthquakes', 'radar']);
+    }).pipe(Effect.provide(pipeline())),
+  );
+
+  it.effect('ignores the state of a feed that no longer exists', () =>
+    Effect.gen(function* () {
+      const db = yield* Db;
+      yield* db
+        .collection('feeds', { schema: FeedState, partition: 'kind', sort: 'feed' })
+        .put({ kind: 'feed', feed: 'retired', intervalSeconds: 60, attemptedAt: 0, failures: 0 });
+      assert.deepStrictEqual([...(yield* (yield* FeedStore).states).keys()], []);
+      assert.strictEqual((yield* (yield* Refresher).tick).length, 5);
     }).pipe(Effect.provide(pipeline())),
   );
 

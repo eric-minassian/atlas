@@ -10,7 +10,8 @@ import type { Validators } from './ingest/index.ts';
  */
 export const FeedState = Schema.Struct({
   kind: Schema.Literal('feed'),
-  feed: FeedId,
+  /** A plain string, so a feed removed from the code leaves a document that still decodes (and is ignored). */
+  feed: Schema.String,
   intervalSeconds: Schema.Int,
   /** Epoch ms the latest refresh started. */
   attemptedAt: Schema.Finite,
@@ -87,9 +88,10 @@ export class FeedStore extends Context.Service<
         return yield* collection.put(change(current.value));
       });
 
+      const isFeedId = Schema.is(FeedId);
       const states = Effect.map(
         collection.queryAll({ kind: 'feed' }),
-        (docs) => new Map(docs.map((d) => [d.feed, d] as const)),
+        (docs) => new Map(docs.flatMap((d) => (isFeedId(d.feed) ? [[d.feed, d] as const] : []))),
       );
 
       const begin = Effect.fn('FeedStore.begin')(function* (feed: FeedId, intervalSeconds: number) {
