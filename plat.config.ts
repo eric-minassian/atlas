@@ -22,9 +22,6 @@ const app = defineApp({
   storage: ['snapshots'],
   queues: { refresh: queue<RefreshJob>({ batchSize: 1, maxReceiveCount: 2 }) },
   crons: { tick: 'rate(1 minute)' },
-  // OpenSky API client credentials. Without them aircraft refresh on the
-  // anonymous quota (about every 15 minutes) instead of every 90 seconds.
-  secrets: ['OPENSKY_CLIENT_ID', 'OPENSKY_CLIENT_SECRET'],
 });
 
 export default app;

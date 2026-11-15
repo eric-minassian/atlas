@@ -3,13 +3,13 @@
  * other payloads. Shared by the server, the worker and the web app (through
  * `src/api.ts`), so keep it free of server-only imports.
  *
- * Large feeds (aircraft, satellites, fires) are columnar: one array per field,
+ * Large payloads (aircraft, satellites, fires) are columnar: one array per field,
  * all the same length. That keeps snapshots small on the wire and lets the
  * globe read them without building an object per entity.
  */
 import { Schema } from 'effect';
 
-export const feedIds = ['aircraft', 'satellites', 'earthquakes', 'fires', 'events', 'radar'] as const;
+export const feedIds = ['satellites', 'earthquakes', 'fires', 'events', 'radar'] as const;
 export const FeedId = Schema.Literals(feedIds);
 export type FeedId = typeof FeedId.Type;
 
@@ -25,19 +25,21 @@ const NullableNumbers = Column(Schema.NullOr(Schema.Finite));
 // Feed payloads
 // ---------------------------------------------------------------------------
 
-/** Aircraft state vectors (OpenSky Network), columnar. */
+/** Aircraft positions from ADS-B receiver networks (readsb's JSON, normalized), columnar. */
 export const AircraftData = Schema.Struct({
-  /** Epoch seconds the positions are reported for. */
-  time: Schema.Finite,
-  /** ICAO 24-bit transponder address, hex. */
+  /** ICAO 24-bit transponder address, hex; `~`-prefixed for addresses that aren't ICAO. */
   icao: Column(Schema.String),
   /** Empty when the aircraft doesn't broadcast one. */
   callsign: Column(Schema.String),
-  /** Country of registration, inferred from the ICAO address. */
-  country: Column(Schema.String),
+  /** Empty when unknown. */
+  registration: Column(Schema.String),
+  /** ICAO type designator (`B738`), empty when unknown. */
+  type: Column(Schema.String),
+  /** ADS-B emitter category (`A3`), empty when unknown. */
+  category: Column(Schema.String),
   lon: Numbers,
   lat: Numbers,
-  /** Meters above the WGS84 ellipsoid where reported, else barometric altitude. */
+  /** Meters: geometric where reported, else barometric. Null when unknown. */
   altitude: NullableNumbers,
   onGround: Column(Schema.Boolean),
   /** Ground speed, m/s. */
@@ -49,10 +51,20 @@ export const AircraftData = Schema.Struct({
   squawk: Column(Schema.NullOr(Schema.String)),
   /** Epoch seconds of the last position fix, for dead reckoning. */
   positionTime: Numbers,
-  /** OpenSky emitter category, 0 when unknown (see `aircraftCategories` in src/catalog.ts). */
-  category: Column(Schema.Int),
 });
 export type AircraftData = typeof AircraftData.Type;
+
+/** Aircraft within `radiusNm` of a point, as one receiver network reported them. */
+export const AircraftNearby = Schema.Struct({
+  lat: Schema.Finite,
+  lon: Schema.Finite,
+  radiusNm: Schema.Finite,
+  /** Epoch ms the network produced the answer. */
+  time: Schema.Finite,
+  source: Schema.String,
+  data: AircraftData,
+});
+export type AircraftNearby = typeof AircraftNearby.Type;
 
 export const SatelliteGroup = Schema.Literals([
   'station',
@@ -176,8 +188,6 @@ const snapshot = <F extends FeedId, D extends Schema.Top>(feed: F, data: D) =>
     data,
   });
 
-export const AircraftSnapshot = snapshot('aircraft', AircraftData);
-export type AircraftSnapshot = typeof AircraftSnapshot.Type;
 export const SatelliteSnapshot = snapshot('satellites', SatelliteData);
 export type SatelliteSnapshot = typeof SatelliteSnapshot.Type;
 export const EarthquakeSnapshot = snapshot('earthquakes', EarthquakeData);
@@ -191,7 +201,6 @@ export type RadarSnapshot = typeof RadarSnapshot.Type;
 
 /** Each feed's snapshot schema. */
 export const Snapshots = {
-  aircraft: AircraftSnapshot,
   satellites: SatelliteSnapshot,
   earthquakes: EarthquakeSnapshot,
   fires: FireSnapshot,
@@ -201,7 +210,6 @@ export const Snapshots = {
 
 /** Each feed's payload type. */
 export interface FeedData {
-  aircraft: AircraftData;
   satellites: SatelliteData;
   earthquakes: EarthquakeData;
   fires: FireData;

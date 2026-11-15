@@ -3,6 +3,7 @@ import { Effect, Layer, Option } from 'effect';
 import { HttpEffect, HttpServerResponse } from 'effect/http';
 import { HttpApiBuilder } from 'effect/http-api';
 import type { HttpServerRequest } from 'effect/http/HttpServerRequest';
+import { AircraftNearbyLookup } from './aircraft.ts';
 import { Api } from './api.ts';
 import { feeds } from './catalog.ts';
 import { type FeedId, FeedNotReady, feedIds } from './domain.ts';
@@ -87,13 +88,27 @@ const TilesHandlers = HttpApiBuilder.group(
   }),
 );
 
+const LiveHandlers = HttpApiBuilder.group(
+  Api,
+  'live',
+  Effect.fn(function* (handlers) {
+    const aircraft = yield* AircraftNearbyLookup;
+    return handlers.handle('aircraft', ({ query }) =>
+      Effect.gen(function* () {
+        const nearby = yield* aircraft.near(query.lat, query.lon);
+        yield* cacheFor('public, max-age=8, stale-while-revalidate=20');
+        return nearby;
+      }),
+    );
+  }),
+);
+
 const FeedsHandlers = HttpApiBuilder.group(
   Api,
   'feeds',
   Effect.fn(function* (handlers) {
     const store = yield* FeedStore;
     return handlers
-      .handle('aircraft', serveFeed(store, 'aircraft'))
       .handle('satellites', serveFeed(store, 'satellites'))
       .handle('earthquakes', serveFeed(store, 'earthquakes'))
       .handle('fires', serveFeed(store, 'fires'))
@@ -108,6 +123,6 @@ const FeedsHandlers = HttpApiBuilder.group(
  * ones, tests in-memory ones. The OpenAPI document is at `/api/openapi.json`.
  */
 export const HttpLive = HttpApiBuilder.layer(Api, { openapiPath: '/api/openapi.json' }).pipe(
-  Layer.provide([SystemHandlers, FeedsHandlers, TilesHandlers]),
-  Layer.provide([FeedStore.layer, Sources.layer, HereLookup.layer, Tiles.layer]),
+  Layer.provide([SystemHandlers, FeedsHandlers, LiveHandlers, TilesHandlers]),
+  Layer.provide([FeedStore.layer, Sources.layer, HereLookup.layer, Tiles.layer, AircraftNearbyLookup.layer]),
 );

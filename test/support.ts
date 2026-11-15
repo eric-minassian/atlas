@@ -20,8 +20,8 @@ const json = (body: string, init: { readonly headers?: Record<string, string> } 
 /** Every source answered from the recorded fixtures. */
 export const recorded: Upstream = ({ url }) => {
   switch (url.host) {
-    case 'opensky-network.org':
-      return json(fixture('opensky.json'));
+    case 'opendata.adsb.fi':
+      return json(fixture('adsbfi.json'));
     case 'celestrak.org':
       return json(fixture('celestrak.json'), {
         headers: { 'last-modified': 'Sun, 15 Nov 2026 22:00:00 GMT' },

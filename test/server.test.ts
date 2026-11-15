@@ -99,7 +99,6 @@ describe('api', () => {
       assert.deepStrictEqual(
         before.feeds.map((f) => [f.id, f.version, f.intervalSeconds]),
         [
-          ['aircraft', null, 900],
           ['satellites', null, 7200],
           ['earthquakes', null, 60],
           ['fires', null, 1800],

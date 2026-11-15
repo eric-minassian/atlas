@@ -18,16 +18,6 @@ export interface FeedInfo {
 }
 
 export const feeds: { readonly [F in FeedId]: FeedInfo } = {
-  aircraft: {
-    title: 'Aircraft',
-    source: {
-      name: 'OpenSky Network',
-      url: 'https://opensky-network.org',
-      license: 'OpenSky Network terms of use (non-commercial)',
-    },
-    // With API client credentials; see `openSkyInterval` for the anonymous quota.
-    intervalSeconds: 90,
-  },
   satellites: {
     title: 'Satellites',
     source: { name: 'CelesTrak', url: 'https://celestrak.org', license: 'Public GP data' },
@@ -60,31 +50,28 @@ export const feeds: { readonly [F in FeedId]: FeedInfo } = {
   },
 };
 
-/**
- * OpenSky charges 4 credits per global request. Anonymous clients get 400
- * credits a day (one request every ~15 minutes); API clients get 4,000.
- */
-export const openSkyInterval = (authenticated: boolean): number =>
-  authenticated ? feeds.aircraft.intervalSeconds : 15 * 60;
+/** Where nearby-aircraft queries go, in order: the next is tried when one fails. */
+export const aircraftSources: ReadonlyArray<Source> = [
+  { name: 'adsb.fi', url: 'https://adsb.fi', license: 'adsb.fi open data terms (non-commercial)' },
+  { name: 'adsb.lol', url: 'https://adsb.lol', license: 'ODbL 1.0' },
+];
 
-/** OpenSky emitter categories (state vector field 17). */
-export const aircraftCategories: Readonly<Record<number, string>> = {
-  2: 'Light',
-  3: 'Small',
-  4: 'Large',
-  5: 'High vortex large',
-  6: 'Heavy',
-  7: 'High performance',
-  8: 'Rotorcraft',
-  9: 'Glider',
-  10: 'Lighter than air',
-  11: 'Parachutist',
-  12: 'Ultralight',
-  14: 'Unmanned',
-  15: 'Space vehicle',
-  16: 'Emergency vehicle',
-  17: 'Service vehicle',
-  18: 'Obstacle',
-  19: 'Cluster obstacle',
-  20: 'Line obstacle',
+/** ADS-B emitter categories (DO-260B). */
+export const aircraftCategories: Readonly<Record<string, string>> = {
+  A1: 'Light',
+  A2: 'Small',
+  A3: 'Large',
+  A4: 'High vortex large',
+  A5: 'Heavy',
+  A6: 'High performance',
+  A7: 'Rotorcraft',
+  B1: 'Glider',
+  B2: 'Lighter than air',
+  B3: 'Parachutist',
+  B4: 'Ultralight',
+  B6: 'Unmanned',
+  B7: 'Space vehicle',
+  C1: 'Emergency vehicle',
+  C2: 'Service vehicle',
+  C3: 'Obstacle',
 };

@@ -24,7 +24,7 @@ describe('refresh', () => {
       const memory = yield* Platform.Memory;
 
       const first = yield* refresher.tick;
-      assert.deepStrictEqual(first, ['aircraft', 'satellites', 'earthquakes', 'fires', 'events', 'radar']);
+      assert.deepStrictEqual(first, ['satellites', 'earthquakes', 'fires', 'events', 'radar']);
       assert.deepStrictEqual(
         (yield* memory.sent).map((m) => m.body),
         first.map((feed) => ({ feed })),
@@ -36,7 +36,6 @@ describe('refresh', () => {
       assert.deepStrictEqual(yield* refresher.tick, ['earthquakes']);
       yield* refresher.refresh('earthquakes');
       yield* TestClock.adjust('5 minutes');
-      // Anonymous OpenSky access refreshes every 15 minutes.
       assert.deepStrictEqual(yield* refresher.tick, ['earthquakes', 'radar']);
     }).pipe(Effect.provide(pipeline())),
   );

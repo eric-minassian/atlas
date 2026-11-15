@@ -3,7 +3,7 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { FeedStatus } from '../../../src/domain.ts';
-import { useFeedView, useNow } from '../hooks.ts';
+import { useFeedView, useLayerStatus, useNow } from '../hooks.ts';
 import { layers } from '../layers/registry.ts';
 import { categories, type LayerDef } from '../layers/types.ts';
 import { formatAge, formatInt } from '../lib/format.ts';
@@ -117,7 +117,7 @@ function LayerRow({
             <p className="mt-1 opacity-70">Source: {layer.source.name}</p>
           </TooltipContent>
         </Tooltip>
-        {layer.feed && visible && <FeedMeta layer={layer} status={status} />}
+        {visible && (layer.feed ? <FeedMeta layer={layer} status={status} /> : <LiveMeta layer={layer.id} />)}
       </div>
       {visible && (layer.legend || layer.filters || opacity !== undefined) && (
         <div className="mt-2 ml-[38px] space-y-2 pb-0.5">
@@ -230,6 +230,31 @@ function FeedMeta({ layer, status }: { readonly layer: LayerDef; readonly status
           </p>
         )}
         {stale && <p className="mt-1 text-amber-200/90">The latest refresh failed: {stale}</p>}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function LiveMeta({ layer }: { readonly layer: string }) {
+  const status = useLayerStatus(layer);
+  if (!status.text) return null;
+  const label = (
+    <span
+      className={cn(
+        'flex items-center gap-1 text-[11px] tabular-nums',
+        status.tone === 'warn' ? 'text-amber-300/90' : 'text-muted-foreground',
+      )}
+    >
+      {status.tone === 'warn' && <CircleAlert className="size-3" />}
+      {status.text}
+    </span>
+  );
+  if (!status.detail) return label;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{label}</TooltipTrigger>
+      <TooltipContent side="right" className="max-w-64">
+        {status.detail}
       </TooltipContent>
     </Tooltip>
   );

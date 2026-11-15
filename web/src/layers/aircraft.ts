@@ -1,20 +1,32 @@
 import {
+  ArcType,
   type Billboard,
   BillboardCollection,
+  Cartesian2,
   Cartesian3,
+  Cartographic,
   Color,
-  NearFarScalar,
+  Material,
   Math as CesiumMath,
+  NearFarScalar,
+  PolylineCollection,
 } from 'cesium';
-import { aircraftCategories, feeds } from '../../../src/catalog.ts';
-import { feedPoller, type Snapshot } from '../data/feeds.ts';
-import type { PickId } from '../globe/globe.ts';
+import { Effect } from 'effect';
+import { aircraftCategories, aircraftSources } from '../../../src/catalog.ts';
+import type { AircraftData, AircraftNearby } from '../../../src/domain.ts';
+import { callApi } from '../client.ts';
+import { layerStatus } from '../data/status.ts';
+import type { Globe, PickId } from '../globe/globe.ts';
 import { formatAge, formatBearing, formatInt, formatLatLon, metersToFeet, msToKnots } from '../lib/format.ts';
 import type { Details, LayerDef, LayerHandle, SearchHit } from './types.ts';
 
 const EARTH_RADIUS = 6_371_000;
-/** Beyond this, positions are shown where they were last reported rather than extrapolated. */
-const MAX_EXTRAPOLATION_S = 600;
+const NM = 1852;
+/** Above this camera height the 250 nm area is a small part of the view: ask the viewer to zoom in. */
+const MAX_HEIGHT = 2_500_000;
+const POLL_MS = 10_000;
+/** Beyond this, positions stay where they were last reported rather than being extrapolated. */
+const MAX_EXTRAPOLATION_S = 120;
 const UPDATE_MS = 200;
 
 const bands = [
@@ -25,6 +37,7 @@ const bands = [
 ] as const;
 const bandColors = bands.map((b) => Color.fromCssColorString(b.color));
 const SELECTED = Color.fromCssColorString('#ffffff');
+const AREA = Color.fromCssColorString('#f2c45a').withAlpha(0.28);
 
 const colorFor = (altitude: number | null, onGround: boolean): Color => {
   if (onGround) return bandColors[0] as Color;
@@ -41,36 +54,60 @@ const planeIcon = `data:image/svg+xml,${encodeURIComponent(
     'fill="#fff" stroke="rgba(0,0,0,0.65)" stroke-width="1.5"/></svg>',
 )}`;
 
-type Data = Snapshot<'aircraft'>['data'];
-
 /** Position after flying `seconds` along `track` at `speed`, on a sphere (good enough for minutes). */
 const advance = (lat: number, lon: number, track: number, speed: number, seconds: number) => {
   const d = (speed * seconds) / EARTH_RADIUS;
   const t = CesiumMath.toRadians(track);
   const φ = CesiumMath.toRadians(lat);
-  const dφ = d * Math.cos(t);
   const dλ = (d * Math.sin(t)) / Math.max(0.01, Math.cos(φ));
   return {
-    lat: lat + CesiumMath.toDegrees(dφ),
-    lon: CesiumMath.negativePiToPi(CesiumMath.toRadians(lon) + dλ) * (180 / Math.PI),
+    lat: lat + CesiumMath.toDegrees(d * Math.cos(t)),
+    lon: CesiumMath.toDegrees(CesiumMath.negativePiToPi(CesiumMath.toRadians(lon) + dλ)),
   };
 };
+
+/** A circle of `radius` meters around a point, as lon/lat pairs. */
+const circle = (lat: number, lon: number, radius: number): number[] => {
+  const points: number[] = [];
+  for (let k = 0; k <= 96; k++) {
+    const p = advance(lat, lon, (k * 360) / 96, radius, 1);
+    points.push(p.lon, p.lat);
+  }
+  return points;
+};
+
+/** The point at the center of the view, or undefined when the view's center is sky. */
+const viewCenter = (globe: Globe) => {
+  const canvas = globe.scene.canvas;
+  const hit = globe.scene.camera.pickEllipsoid(
+    new Cartesian2(canvas.clientWidth / 2, canvas.clientHeight / 2),
+    globe.scene.globe.ellipsoid,
+  );
+  if (!hit) return undefined;
+  const c = Cartographic.fromCartesian(hit);
+  return { lat: CesiumMath.toDegrees(c.latitude), lon: CesiumMath.toDegrees(c.longitude) };
+};
+
+const describeSources = aircraftSources.map((s) => s.name).join(' and ');
 
 export const aircraftLayer: LayerDef = {
   id: 'aircraft',
   title: 'Aircraft',
   category: 'air',
-  description: 'Live ADS-B positions worldwide, extrapolated between reports along each heading.',
-  source: feeds.aircraft.source,
-  feed: 'aircraft',
+  description:
+    'Live ADS-B positions within 250 nautical miles of the center of the view, refreshed every 10 seconds. Zoom in to load them.',
+  source: aircraftSources[0] ?? { name: 'adsb.fi', url: 'https://adsb.fi', license: '' },
   defaultVisible: true,
   legend: bands.map(({ label, color }) => ({ label, color })),
   create(globe): LayerHandle {
     const billboards = globe.scene.primitives.add(new BillboardCollection({ scene: globe.scene }));
-    let data: Data | undefined;
+    const area = globe.scene.primitives.add(new PolylineCollection());
+    let data: AircraftData | undefined;
     let byIcao = new Map<string, number>();
     let items: Billboard[] = [];
     let selected: string | undefined;
+    let visible = false;
+    let loading = false;
     const scratch = new Cartesian3();
 
     const positionOf = (i: number, now: number): Cartesian3 | undefined => {
@@ -95,14 +132,21 @@ export const aircraftLayer: LayerDef = {
       return Cartesian3.fromDegrees(p.lon, p.lat, altitude, undefined, scratch);
     };
 
-    const render = (snapshot: Snapshot<'aircraft'>) => {
-      data = snapshot.data;
-      const n = data.icao.length;
+    const clear = () => {
+      data = undefined;
+      byIcao = new Map();
+      items = [];
+      billboards.removeAll();
+      area.removeAll();
+    };
+
+    const render = (nearby: AircraftNearby) => {
+      data = nearby.data;
       billboards.removeAll();
       items = [];
       byIcao = new Map();
       const now = globe.now();
-      for (let i = 0; i < n; i++) {
+      for (let i = 0; i < data.icao.length; i++) {
         const icao = data.icao[i] as string;
         byIcao.set(icao, i);
         const position = positionOf(i, now);
@@ -115,15 +159,59 @@ export const aircraftLayer: LayerDef = {
             scale: icao === selected ? 0.8 : 0.5,
             rotation: -CesiumMath.toRadians(data.track[i] ?? 0),
             alignedAxis: Cartesian3.UNIT_Z,
-            scaleByDistance: new NearFarScalar(2e5, 1.1, 1.5e7, 0.32),
+            scaleByDistance: new NearFarScalar(2e5, 1.1, 2.5e6, 0.55),
             id: { layer: 'aircraft', key: icao } satisfies PickId,
           }),
         );
       }
+      area.removeAll();
+      area.add({
+        positions: Cartesian3.fromDegreesArray(circle(nearby.lat, nearby.lon, nearby.radiusNm * NM)),
+        width: 1,
+        arcType: ArcType.GEODESIC,
+        material: Material.fromType('Color', { color: AREA }),
+      });
+      layerStatus.set('aircraft', {
+        text: formatInt(data.icao.length),
+        detail: `Within ${nearby.radiusNm} nm of ${formatLatLon(nearby.lat, nearby.lon)}, from ${nearby.source}.`,
+      });
     };
 
-    const timer = setInterval(() => {
-      if (!data || !billboards.show) return;
+    /** Loads the aircraft around the center of the view, or explains why it can't. */
+    const refresh = async () => {
+      if (!visible || loading) return;
+      if (globe.scene.camera.positionCartographic.height > MAX_HEIGHT) {
+        clear();
+        layerStatus.set('aircraft', {
+          text: 'Zoom in',
+          detail: 'Aircraft load for the area in view once you zoom in closer.',
+          tone: 'muted',
+        });
+        return;
+      }
+      const center = viewCenter(globe);
+      if (!center) return;
+      loading = true;
+      const lat = Math.round(center.lat);
+      const lon = Math.round(center.lon);
+      const result = await callApi((api) => Effect.result(api.live.aircraft({ query: { lat, lon } }))).catch(
+        () => undefined,
+      );
+      loading = false;
+      if (!visible) return;
+      if (result?._tag === 'Success') render(result.success);
+      else
+        layerStatus.set('aircraft', {
+          text: 'Unavailable',
+          detail: `${describeSources} didn't answer. Retrying.`,
+          tone: 'warn',
+        });
+    };
+
+    const poll = setInterval(() => void refresh(), POLL_MS);
+    const removeMoveEnd = globe.scene.camera.moveEnd.addEventListener(() => void refresh());
+    const animate = setInterval(() => {
+      if (!data || !visible) return;
       const now = globe.now();
       for (let i = 0; i < items.length; i++) {
         const position = positionOf(i, now);
@@ -132,85 +220,84 @@ export const aircraftLayer: LayerDef = {
       }
     }, UPDATE_MS);
 
-    let unsubscribe: (() => void) | undefined;
-
     const describe = (icao: string): Details | undefined => {
       const i = byIcao.get(icao);
       if (i === undefined || !data) return undefined;
-      const callsign = data.callsign[i] || icao.toUpperCase();
+      const callsign = data.callsign[i] || data.registration[i] || icao.toUpperCase();
       const altitude = data.altitude[i];
       const speed = data.speed[i];
       const track = data.track[i];
       const vrate = data.verticalRate[i];
-      const category = aircraftCategories[data.category[i] ?? 0];
+      const category = aircraftCategories[data.category[i] ?? ''];
       const squawk = data.squawk[i];
-      const now = globe.now();
-      const fields = [
-        { label: 'ICAO address', value: icao.toUpperCase() },
-        { label: 'Registered in', value: data.country[i] ?? '—' },
-        {
-          label: 'Altitude',
-          value: data.onGround[i]
-            ? 'On ground'
-            : altitude === null || altitude === undefined
-              ? '—'
-              : `${formatInt(metersToFeet(altitude))} ft · ${formatInt(altitude)} m`,
-        },
-        {
-          label: 'Ground speed',
-          value: speed === null || speed === undefined ? '—' : `${formatInt(msToKnots(speed))} kt`,
-        },
-        { label: 'Track', value: track === null || track === undefined ? '—' : formatBearing(track) },
-        {
-          label: 'Vertical rate',
-          value:
-            vrate === null || vrate === undefined
-              ? '—'
-              : `${vrate > 0 ? '+' : ''}${formatInt(metersToFeet(vrate) * 60)} ft/min`,
-        },
-        ...(squawk ? [{ label: 'Squawk', value: squawk }] : []),
-        ...(category ? [{ label: 'Category', value: category }] : []),
-        { label: 'Position', value: formatLatLon(data.lat[i] as number, data.lon[i] as number) },
-        { label: 'Last report', value: formatAge(now - (data.positionTime[i] as number) * 1000) },
-      ];
+      const registration = data.registration[i];
+      const type = data.type[i];
       return {
         kind: 'Aircraft',
         title: callsign,
-        subtitle: data.country[i],
-        fields,
-        link: {
-          label: 'OpenSky aircraft profile',
-          href: `https://opensky-network.org/aircraft-profile?icao24=${icao}`,
-        },
+        subtitle: [type, registration].filter(Boolean).join(' · ') || undefined,
+        fields: [
+          { label: 'ICAO address', value: icao.toUpperCase() },
+          ...(registration ? [{ label: 'Registration', value: registration }] : []),
+          ...(type ? [{ label: 'Type', value: type }] : []),
+          {
+            label: 'Altitude',
+            value: data.onGround[i]
+              ? 'On ground'
+              : altitude === null || altitude === undefined
+                ? '—'
+                : `${formatInt(metersToFeet(altitude))} ft · ${formatInt(altitude)} m`,
+          },
+          {
+            label: 'Ground speed',
+            value: speed === null || speed === undefined ? '—' : `${formatInt(msToKnots(speed))} kt`,
+          },
+          { label: 'Track', value: track === null || track === undefined ? '—' : formatBearing(track) },
+          {
+            label: 'Vertical rate',
+            value:
+              vrate === null || vrate === undefined
+                ? '—'
+                : `${vrate > 0 ? '+' : ''}${formatInt(metersToFeet(vrate) * 60)} ft/min`,
+          },
+          ...(squawk ? [{ label: 'Squawk', value: squawk }] : []),
+          ...(category ? [{ label: 'Category', value: category }] : []),
+          { label: 'Position', value: formatLatLon(data.lat[i] as number, data.lon[i] as number) },
+          { label: 'Last report', value: formatAge(globe.now() - (data.positionTime[i] as number) * 1000) },
+        ],
+        link: { label: 'adsb.fi map', href: `https://globe.adsb.fi/?icao=${icao}` },
         position: () => {
-          const p = positionOf(i, globe.now());
+          const index = byIcao.get(icao);
+          const p = index === undefined ? undefined : positionOf(index, globe.now());
           return p ? Cartesian3.clone(p) : undefined;
         },
       };
     };
 
     return {
-      setVisible(visible) {
-        billboards.show = visible;
-        if (visible && !unsubscribe) unsubscribe = feedPoller.subscribe('aircraft', render);
-        if (!visible && unsubscribe) {
-          unsubscribe();
-          unsubscribe = undefined;
+      setVisible(next) {
+        visible = next;
+        billboards.show = next;
+        area.show = next;
+        if (next) void refresh();
+        else {
+          clear();
+          layerStatus.set('aircraft', { text: '' });
         }
       },
       details: describe,
       highlight(icao) {
         selected = icao;
-        const restyle = (key: string, on: boolean) => {
-          const i = byIcao.get(key);
+        const restyle = (on: boolean) => {
+          const i = byIcao.get(icao);
           const b = i === undefined ? undefined : items[i];
           if (!b || !data || i === undefined) return;
           b.color = on ? SELECTED : colorFor(data.altitude[i] ?? null, data.onGround[i] ?? false);
           b.scale = on ? 0.8 : 0.5;
         };
-        restyle(icao, true);
+        restyle(true);
         return () => {
-          restyle(icao, false);
+          restyle(false);
           if (selected === icao) selected = undefined;
         };
       },
@@ -221,20 +308,27 @@ export const aircraftLayer: LayerDef = {
         for (let i = 0; i < data.icao.length && hits.length < limit; i++) {
           const callsign = data.callsign[i] ?? '';
           const icao = data.icao[i] as string;
-          if (callsign.toUpperCase().startsWith(q) || icao.toUpperCase().startsWith(q))
+          const registration = data.registration[i] ?? '';
+          if (
+            callsign.toUpperCase().startsWith(q) ||
+            icao.toUpperCase().startsWith(q) ||
+            registration.toUpperCase().startsWith(q)
+          )
             hits.push({
               layer: 'aircraft',
               key: icao,
-              title: callsign || icao.toUpperCase(),
-              subtitle: `Aircraft · ${data.country[i] ?? ''}`,
+              title: callsign || registration || icao.toUpperCase(),
+              subtitle: ['Aircraft', data.type[i], registration].filter(Boolean).join(' · '),
             });
         }
         return hits;
       },
       destroy() {
-        clearInterval(timer);
-        unsubscribe?.();
+        clearInterval(poll);
+        clearInterval(animate);
+        removeMoveEnd();
         globe.scene.primitives.remove(billboards);
+        globe.scene.primitives.remove(area);
       },
     };
   },

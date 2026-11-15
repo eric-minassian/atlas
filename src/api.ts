@@ -7,7 +7,7 @@
 import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from 'effect/http-api';
 import {
-  AircraftSnapshot,
+  AircraftNearby,
   Catalog,
   EarthquakeSnapshot,
   EventSnapshot,
@@ -22,6 +22,9 @@ import {
   UpstreamUnavailable,
 } from './domain.ts';
 
+const LatitudeParam = Schema.FiniteFromString.pipe(Schema.decodeTo(Latitude));
+const LongitudeParam = Schema.FiniteFromString.pipe(Schema.decodeTo(Longitude));
+
 export class SystemApi extends HttpApiGroup.make('system', { topLevel: true }).add(
   HttpApiEndpoint.get('health', '/health', {
     success: Schema.Struct({ ok: Schema.Literal(true), app: Schema.String, stage: Schema.String }),
@@ -31,8 +34,8 @@ export class SystemApi extends HttpApiGroup.make('system', { topLevel: true }).a
   /** Conditions at a point (weather, elevation, time zone). */
   HttpApiEndpoint.get('here', '/here', {
     query: {
-      lat: Schema.FiniteFromString.pipe(Schema.decodeTo(Latitude)),
-      lon: Schema.FiniteFromString.pipe(Schema.decodeTo(Longitude)),
+      lat: LatitudeParam,
+      lon: LongitudeParam,
     },
     success: Here,
     error: UpstreamUnavailable,
@@ -45,7 +48,6 @@ export class SystemApi extends HttpApiGroup.make('system', { topLevel: true }).a
  */
 export class FeedsApi extends HttpApiGroup.make('feeds')
   .add(
-    HttpApiEndpoint.get('aircraft', '/aircraft', { success: AircraftSnapshot, error: FeedNotReady }),
     HttpApiEndpoint.get('satellites', '/satellites', { success: SatelliteSnapshot, error: FeedNotReady }),
     HttpApiEndpoint.get('earthquakes', '/earthquakes', { success: EarthquakeSnapshot, error: FeedNotReady }),
     HttpApiEndpoint.get('fires', '/fires', { success: FireSnapshot, error: FeedNotReady }),
@@ -53,6 +55,21 @@ export class FeedsApi extends HttpApiGroup.make('feeds')
     HttpApiEndpoint.get('radar', '/radar', { success: RadarSnapshot, error: FeedNotReady }),
   )
   .prefix('/feeds') {}
+
+/** Data looked up for the place someone is looking at, rather than refreshed on a schedule. */
+export class LiveApi extends HttpApiGroup.make('live')
+  .add(
+    /**
+     * Aircraft within 250 nm of a point, a few seconds old. Points snap to whole
+     * degrees, so send whole degrees to share the edge cache with other viewers.
+     */
+    HttpApiEndpoint.get('aircraft', '/aircraft', {
+      query: { lat: LatitudeParam, lon: LongitudeParam },
+      success: AircraftNearby,
+      error: UpstreamUnavailable,
+    }),
+  )
+  .prefix('/live') {}
 
 const TileCoordinate = Schema.FiniteFromString.pipe(
   Schema.decodeTo(Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 1 << 12 }))),
@@ -80,6 +97,7 @@ export class TilesApi extends HttpApiGroup.make('tiles')
 export class Api extends HttpApi.make('atlas')
   .add(SystemApi)
   .add(FeedsApi)
+  .add(LiveApi)
   .add(TilesApi)
   .prefix('/api')
   .annotateMerge(OpenApi.annotations({ title: 'atlas' })) {}

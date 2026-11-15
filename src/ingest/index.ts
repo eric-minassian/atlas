@@ -1,6 +1,5 @@
 import { Context, Layer } from 'effect';
 import type { FeedId } from '../domain.ts';
-import { makeAircraftSource } from './aircraft.ts';
 import { makeEarthquakeSource } from './earthquakes.ts';
 import { makeEventSource } from './events.ts';
 import { makeFireSource } from './fires.ts';
@@ -21,7 +20,6 @@ export class Sources extends Context.Service<Sources, { readonly [F in FeedId]: 
 ) {
   static readonly layer = Layer.sync(Sources, () =>
     Sources.of({
-      aircraft: makeAircraftSource(),
       satellites: makeSatelliteSource(),
       earthquakes: makeEarthquakeSource(),
       fires: makeFireSource(),

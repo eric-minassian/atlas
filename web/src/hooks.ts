@@ -2,6 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { FeedId, FeedStatus } from '../../src/domain.ts';
 import { callApi } from './client.ts';
 import { feedPoller, type FeedView } from './data/feeds.ts';
+import { layerStatus, type LayerStatus } from './data/status.ts';
 
 /** The current time, re-rendering every `intervalMs`. */
 export function useNow(intervalMs = 1000): number {
@@ -17,6 +18,13 @@ export function useFeedView(feed: FeedId | undefined): FeedView | undefined {
   return useSyncExternalStore(
     (listener) => feedPoller.onViews(listener),
     () => (feed ? feedPoller.view(feed) : undefined),
+  );
+}
+
+export function useLayerStatus(layer: string): LayerStatus {
+  return useSyncExternalStore(
+    (listener) => layerStatus.subscribe(listener),
+    () => layerStatus.get(layer),
   );
 }
 

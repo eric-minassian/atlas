@@ -8,7 +8,6 @@ export type Snapshot<F extends FeedId> = (typeof Snapshots)[F]['Type'];
 type Fetchers = { [F in FeedId]: (api: ApiClient) => Effect.Effect<Snapshot<F>, unknown> };
 
 const fetchers: Fetchers = {
-  aircraft: (api) => api.feeds.aircraft(),
   satellites: (api) => api.feeds.satellites(),
   earthquakes: (api) => api.feeds.earthquakes(),
   fires: (api) => api.feeds.fires(),

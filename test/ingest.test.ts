@@ -2,7 +2,6 @@ import { assert, describe, it } from '@effect/vitest';
 import { Platform } from '@ericminassian/platform';
 import { Effect, Layer } from 'effect';
 import type { FeedId } from '../src/domain.ts';
-import { makeAircraftSource } from '../src/ingest/aircraft.ts';
 import { makeEarthquakeSource } from '../src/ingest/earthquakes.ts';
 import { makeEventSource } from '../src/ingest/events.ts';
 import { makeFireSource, parseFires } from '../src/ingest/fires.ts';
@@ -28,59 +27,6 @@ const updatedData = <F extends FeedId>(result: IngestResult<F>) => {
   if (result._tag !== 'Updated') throw new Error(`expected an update, got ${result._tag}`);
   return result;
 };
-
-describe('aircraft (OpenSky)', () => {
-  it.effect('keeps positioned aircraft, trims callsigns, and prefers geometric altitude', () =>
-    Effect.gen(function* () {
-      const { result } = yield* read(makeAircraftSource());
-      const { data, count } = updatedData(result);
-      assert.strictEqual(count, 3);
-      assert.strictEqual(data.icao.length, 3);
-      assert.strictEqual(data.callsign[0], 'XAA4341');
-      assert.strictEqual(data.altitude[0], 6180); // geo_altitude, not baro_altitude (6217.92)
-      assert.deepStrictEqual(data.category, [3, 3, 3]);
-      assert.isTrue(data.icao.every((_, i) => Number.isFinite(data.lon[i]) && Number.isFinite(data.lat[i])));
-    }),
-  );
-
-  it.effect('reports an exhausted quota', () =>
-    Effect.gen(function* () {
-      const error = yield* Effect.flip(
-        Effect.map(
-          read(
-            makeAircraftSource(),
-            () => new Response('', { status: 429, headers: { 'x-rate-limit-retry-after-seconds': '120' } }),
-          ),
-          ({ result }) => result,
-        ),
-      );
-      assert.instanceOf(error, IngestError);
-      assert.include(error.message, 'retry in 120s');
-    }),
-  );
-
-  it.effect('signs in with API client credentials and reuses the token', () =>
-    Effect.gen(function* () {
-      const source = makeAircraftSource();
-      const secrets = { OPENSKY_CLIENT_ID: 'atlas', OPENSKY_CLIENT_SECRET: 's3cret' };
-      let tokens = 0;
-      const upstream: Upstream = ({ url }) => {
-        if (url.host === 'auth.opensky-network.org') {
-          tokens++;
-          return Response.json({ access_token: `t${tokens}`, expires_in: 1800 });
-        }
-        return new Response(fixture('opensky.json'));
-      };
-      const first = yield* read(source, upstream, secrets);
-      const second = yield* read(source, upstream, secrets);
-      assert.strictEqual(tokens, 1);
-      assert.strictEqual(first.calls.at(-1)?.headers.authorization, 'Bearer t1');
-      assert.strictEqual(second.calls.at(-1)?.headers.authorization, 'Bearer t1');
-      assert.strictEqual(yield* source.interval.pipe(Effect.provide(Platform.layerMemory({ secrets }))), 90);
-      assert.strictEqual(yield* source.interval.pipe(Effect.provide(Platform.layerMemory())), 900);
-    }),
-  );
-});
 
 describe('satellites (CelesTrak)', () => {
   it.effect('reads elements and sorts satellites into groups', () =>
