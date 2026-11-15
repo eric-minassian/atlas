@@ -19,7 +19,7 @@ export interface LayerSettings {
 export const defaultSettings: LayerSettings = {
   visible: Object.fromEntries(layers.map((l) => [l.id, l.defaultVisible])),
   opacity: Object.fromEntries(layers.flatMap((l) => (l.opacity === undefined ? [] : [[l.id, l.opacity]]))),
-  hidden: {},
+  hidden: Object.fromEntries(layers.flatMap((l) => (l.defaultHidden ? [[l.id, l.defaultHidden]] : []))),
 };
 
 interface Props {

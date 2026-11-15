@@ -178,7 +178,7 @@ export function App() {
         {hover && (
           <div
             className="pointer-events-none fixed z-10 rounded border bg-popover/90 px-1.5 py-0.5 text-[11px] text-popover-foreground shadow"
-            style={{ left: hover.x + 12, top: hover.y + 12 }}
+            style={{ left: hover.x + 14, top: hover.y + 18 }}
           >
             {hover.title}
           </div>

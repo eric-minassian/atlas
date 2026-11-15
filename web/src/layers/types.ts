@@ -70,6 +70,8 @@ export interface LayerDef {
   /** Imagery layers offer an opacity slider starting here. */
   readonly opacity?: number;
   readonly filters?: ReadonlyArray<Filter>;
+  /** Filters off until the viewer turns them on. */
+  readonly defaultHidden?: ReadonlyArray<string>;
   /** A legend line under the layer when it's on, e.g. a color ramp. */
   readonly legend?: ReadonlyArray<{ readonly label: string; readonly color: string }>;
   create(globe: Globe): LayerHandle;

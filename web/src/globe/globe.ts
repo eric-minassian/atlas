@@ -176,7 +176,7 @@ export class Globe {
   }
 
   pickAt(position: Cartesian2, includePlaces = true): Pick {
-    const picked: unknown = this.scene.pick(position, 6, 6);
+    const picked: unknown = this.scene.pick(position, 4, 4);
     if (defined(picked)) {
       const id = (picked as { id?: unknown }).id;
       if (isPickId(id)) return { kind: 'entity', layer: id.layer, key: id.key };

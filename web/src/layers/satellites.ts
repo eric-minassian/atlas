@@ -48,6 +48,8 @@ export const satelliteLayer: LayerDef = {
   feed: 'satellites',
   defaultVisible: true,
   filters: groups,
+  // The broadband constellations are ~10,000 satellites that would blanket the globe.
+  defaultHidden: ['starlink', 'oneweb', 'kuiper'],
   create(globe): LayerHandle {
     const points = globe.scene.primitives.add(new PointPrimitiveCollection());
     const labels = globe.scene.primitives.add(new LabelCollection({ scene: globe.scene }));

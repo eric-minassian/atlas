@@ -165,12 +165,14 @@ export const aircraftLayer: LayerDef = {
         );
       }
       area.removeAll();
-      area.add({
-        positions: Cartesian3.fromDegreesArray(circle(nearby.lat, nearby.lon, nearby.radiusNm * NM)),
-        width: 1,
-        arcType: ArcType.GEODESIC,
-        material: Material.fromType('Color', { color: AREA }),
-      });
+      // The ring marks where aircraft were loaded; over empty ocean it would only be noise.
+      if (data.icao.length > 0)
+        area.add({
+          positions: Cartesian3.fromDegreesArray(circle(nearby.lat, nearby.lon, nearby.radiusNm * NM)),
+          width: 1,
+          arcType: ArcType.GEODESIC,
+          material: Material.fromType('Color', { color: AREA }),
+        });
       layerStatus.set('aircraft', {
         text: formatInt(data.icao.length),
         detail: `Within ${nearby.radiusNm} nm of ${formatLatLon(nearby.lat, nearby.lon)}, from ${nearby.source}.`,
