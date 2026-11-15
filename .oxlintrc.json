@@ -1,0 +1,57 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "import", "node", "promise"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error"
+  },
+  "options": {
+    "typeAware": true,
+    "reportUnusedDisableDirectives": "error"
+  },
+  "ignorePatterns": ["web/src/components/ui/**"],
+  "rules": {
+    "typescript/no-misused-promises": "error",
+    "typescript/no-unsafe-argument": "error",
+    "typescript/no-unsafe-assignment": "error",
+    "typescript/no-unsafe-call": "error",
+    "typescript/no-unsafe-member-access": "error",
+    "typescript/no-unsafe-return": "error",
+    "typescript/only-throw-error": "error",
+    "typescript/prefer-promise-reject-errors": "error",
+    "typescript/restrict-plus-operands": "error",
+    "typescript/no-deprecated": "error",
+    "typescript/switch-exhaustiveness-check": "error",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-import-type-side-effects": "error",
+    "import/no-cycle": "error",
+    "import/no-duplicates": "error",
+    "eslint/no-unused-vars": ["error", { "ignoreRestSiblings": true }],
+    "import/no-unassigned-import": ["error", { "allow": ["**/*.css"] }],
+    // Effect's `_tag` is part of its API.
+    "eslint/no-underscore-dangle": "off",
+    // Local helpers stay next to their one caller.
+    "unicorn/consistent-function-scoping": "off",
+    // Casts narrow columnar snapshot fields (`noUncheckedIndexedAccess`); schemas validate at the boundaries.
+    "typescript/no-unsafe-type-assertion": "off"
+  },
+  "overrides": [
+    {
+      "files": ["web/**"],
+      "plugins": ["react", "jsx-a11y"],
+      "rules": {
+        "react/rules-of-hooks": "error",
+        "react/react-in-jsx-scope": "off"
+      }
+    },
+    {
+      "files": ["test/**", "e2e/**"],
+      "plugins": ["vitest"],
+      "rules": {
+        "vitest/expect-expect": ["error", { "assertFunctionNames": ["expect", "assert"] }],
+        "vitest/valid-title": ["error", { "ignoreTypeOfDescribeName": true }]
+      }
+    }
+  ]
+}

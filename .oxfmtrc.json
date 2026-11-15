@@ -1,0 +1,11 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 110,
+  "singleQuote": true,
+  "ignorePatterns": ["web/src/components/ui/**", "test/fixtures/**", "pnpm-lock.yaml"],
+  "sortImports": {
+    "newlinesBetween": false,
+    "partitionByNewline": true
+  },
+  "sortTailwindcss": { "stylesheet": "./web/src/styles.css" }
+}
