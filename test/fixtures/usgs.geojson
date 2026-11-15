@@ -1,0 +1,141 @@
+{
+ "type": "FeatureCollection",
+ "metadata": {
+  "generated": 1794781920000,
+  "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_week.geojson",
+  "title": "USGS Magnitude 2.5+ Earthquakes, Past Week",
+  "status": 200,
+  "api": "2.8.2",
+  "count": 329
+ },
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "mag": 2.7,
+    "place": "7 km S of Knik, Alaska",
+    "time": 1794779328120,
+    "updated": 1794779515311,
+    "tz": null,
+    "url": "https://earthquake.usgs.gov/earthquakes/eventpage/aka2026wraoug",
+    "detail": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/detail/aka2026wraoug.geojson",
+    "felt": null,
+    "cdi": null,
+    "mmi": null,
+    "alert": null,
+    "status": "automatic",
+    "tsunami": 0,
+    "sig": 112,
+    "net": "ak",
+    "code": "a2026wraoug",
+    "ids": ",aka2026wraoug,",
+    "sources": ",ak,",
+    "types": ",origin,phase-data,",
+    "nst": 77,
+    "dmin": 0.3,
+    "rms": 0.7,
+    "gap": 42,
+    "magType": "ml",
+    "type": "earthquake",
+    "title": "M 2.7 - 7 km S of Knik, Alaska"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -149.717,
+     61.39,
+     8
+    ]
+   },
+   "id": "aka2026wraoug"
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "mag": 4.9,
+    "place": "44 km S of Jurm, Afghanistan",
+    "time": 1794778641082,
+    "updated": 1794780978040,
+    "tz": null,
+    "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000tyga",
+    "detail": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/detail/us7000tyga.geojson",
+    "felt": null,
+    "cdi": null,
+    "mmi": null,
+    "alert": null,
+    "status": "reviewed",
+    "tsunami": 0,
+    "sig": 369,
+    "net": "us",
+    "code": "7000tyga",
+    "ids": ",us7000tyga,",
+    "sources": ",us,",
+    "types": ",origin,phase-data,",
+    "nst": 67,
+    "dmin": 2.431,
+    "rms": 0.78,
+    "gap": 56,
+    "magType": "mww",
+    "type": "earthquake",
+    "title": "M 4.9 - 44 km S of Jurm, Afghanistan"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     70.9205,
+     36.4657,
+     191.363
+    ]
+   },
+   "id": "us7000tyga"
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "mag": 2.5,
+    "place": "87 km SSE of Ugashik, Alaska",
+    "time": 1794776429551,
+    "updated": 1794776569003,
+    "tz": null,
+    "url": "https://earthquake.usgs.gov/earthquakes/eventpage/aka2026wqyzpo",
+    "detail": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/detail/aka2026wqyzpo.geojson",
+    "felt": null,
+    "cdi": null,
+    "mmi": null,
+    "alert": null,
+    "status": "automatic",
+    "tsunami": 0,
+    "sig": 96,
+    "net": "ak",
+    "code": "a2026wqyzpo",
+    "ids": ",aka2026wqyzpo,",
+    "sources": ",ak,",
+    "types": ",origin,phase-data,",
+    "nst": 29,
+    "dmin": 0.6,
+    "rms": 0.5,
+    "gap": 101,
+    "magType": "ml",
+    "type": "earthquake",
+    "title": "M 2.5 - 87 km SSE of Ugashik, Alaska"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -156.995,
+     56.758,
+     69.6
+    ]
+   },
+   "id": "aka2026wqyzpo"
+  }
+ ],
+ "bbox": [
+  -179.9613,
+  -62.4284,
+  -3.42,
+  179.8113,
+  86.7236,
+  595.79
+ ]
+}
