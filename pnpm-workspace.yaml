@@ -2,7 +2,7 @@
 allowBuilds:
   esbuild: true
 minimumReleaseAgeExclude:
-  - '@ericminassian/plat@0.3.0'
-  - '@ericminassian/platform-core@0.3.0'
-  - '@ericminassian/platform-engine@0.3.0'
-  - '@ericminassian/platform@0.3.0'
+  - '@ericminassian/plat@0.4.0'
+  - '@ericminassian/platform-core@0.4.0'
+  - '@ericminassian/platform-engine@0.4.0'
+  - '@ericminassian/platform@0.4.0'
