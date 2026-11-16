@@ -125,6 +125,23 @@ describe('air quality sensors (Sensor.Community)', () => {
     assert.strictEqual(data.since, Date.parse('2026-11-16T00:53:34Z'));
   });
 
+  it.effect('reads the file again when the connection drops partway through', () => {
+    let calls = 0;
+    const dropsOnce: Upstream = (call) => {
+      calls++;
+      if (calls > 1) return recorded(call);
+      const body = new ReadableStream({
+        start: (controller) => controller.error(new Error('connection reset')),
+      });
+      return new Response(body);
+    };
+    return Effect.gen(function* () {
+      const { result } = yield* readSource(makeAirQualitySource(), dropsOnce);
+      assert.strictEqual(updatedData(result).sensor.length, 5);
+      assert.strictEqual(calls, 2);
+    });
+  });
+
   it.effect('reads the dust-sensor file', () =>
     Effect.gen(function* () {
       const { result, calls } = yield* readSource(makeAirQualitySource());

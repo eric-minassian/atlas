@@ -107,9 +107,14 @@ export const makeAirQualitySource = (): Source<'airQuality'> => ({
   interval: Effect.succeed(feeds.airQuality.intervalSeconds),
   read: (validators) =>
     Effect.gen(function* () {
-      const response = yield* get(DATA_URL, { validators });
-      if (response.status === 304) return notModified;
-      const { data, dropped } = parseAirQuality(yield* decodeJson(Readings)(yield* okText(response)));
+      // The server now and then drops the connection partway through the 4 MB body: read it again once.
+      const read = yield* Effect.gen(function* () {
+        const response = yield* get(DATA_URL, { validators });
+        return response.status === 304 ? undefined : { response, text: yield* okText(response) };
+      }).pipe(Effect.retry({ times: 1 }));
+      if (!read) return notModified;
+      const { response, text } = read;
+      const { data, dropped } = parseAirQuality(yield* decodeJson(Readings)(text));
       if (dropped > 0)
         yield* Effect.logInfo('dropped implausible particulate readings').pipe(
           Effect.annotateLogs({ dropped }),
