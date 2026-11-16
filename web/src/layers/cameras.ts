@@ -35,10 +35,11 @@ const trafficKey = 't:';
 const webcamKey = 'w:';
 
 /**
- * How far from the camera an icon still shows. A tilted view reaches the
- * horizon, and without this every highway camera out there lines up along it.
+ * How far from the camera an icon still shows: a few times the camera's
+ * height. A tilted view reaches the horizon, and without a limit every highway
+ * camera out there lines up along it.
  */
-const NEARBY = new DistanceDisplayCondition(0, 15_000);
+const reachFor = (height: number) => new DistanceDisplayCondition(0, Math.max(5_000, height * 4));
 
 export const cameraLayer: LayerDef = {
   id: 'cameras',
@@ -54,13 +55,14 @@ export const cameraLayer: LayerDef = {
   filters: kinds,
   create(globe): LayerHandle {
     const windy = globe.config.sources.windy;
+    let reach = reachFor(globe.view.height);
     const traffic = new GroundPins<TrafficCamera>(globe, 'cameras', ({ data, i }) => ({
       lon: data.lon[i] as number,
       lat: data.lat[i] as number,
       color: trafficColor,
       image: cameraIcon,
       size: 18,
-      reach: NEARBY,
+      reach,
     }));
     const webcams = new GroundPins<Webcam>(globe, 'cameras', (w) => ({
       lon: w.lon,
@@ -68,8 +70,13 @@ export const cameraLayer: LayerDef = {
       color: webcamColor,
       image: cameraIcon,
       size: 18,
-      reach: NEARBY,
+      reach,
     }));
+    const stopReach = globe.viewSettled.add((view) => {
+      reach = reachFor(view.height);
+      traffic.refreshReach();
+      webcams.refreshReach();
+    });
     const loaded = new Listeners<void>();
     traffic.changed.add(() => loaded.emit());
     webcams.changed.add(() => loaded.emit());
@@ -209,6 +216,7 @@ export const cameraLayer: LayerDef = {
         return hits;
       },
       destroy() {
+        stopReach();
         area.destroy();
         unsubscribe?.();
         traffic.destroy();

@@ -198,6 +198,13 @@ export class GroundPins<T> {
     this.labels.show = visible;
   }
 
+  /** Re-applies each marker's `reach` from the style, for styles whose reach follows the view. */
+  refreshReach(): void {
+    for (const [key, entry] of this.entries)
+      if (key !== this.selected)
+        entry.billboard.distanceDisplayCondition = this.style(entry.item).reach ?? ANYWHERE;
+  }
+
   /** Emphasizes `key` (and shows it at any distance); returns the cleanup. */
   highlight(key: string): () => void {
     this.selected = key;
