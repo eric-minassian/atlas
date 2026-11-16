@@ -6,20 +6,45 @@
  */
 import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from 'effect/http-api';
+import { TileParams } from './area.ts';
 import {
   AircraftNearby,
+  AirportsInTile,
+  AirportSnapshot,
+  AirQualitySnapshot,
+  AuroraSnapshot,
+  BikeStations,
+  BikeSystemSnapshot,
+  BuoySnapshot,
+  CameraSnapshot,
   Catalog,
+  ClientConfig,
+  DisasterSnapshot,
   EarthquakeSnapshot,
   EventSnapshot,
   FeedNotReady,
+  FirePerimeterSnapshot,
   FireSnapshot,
   Here,
   Latitude,
+  LightningSnapshot,
   Longitude,
+  MetarSnapshot,
   RadarSnapshot,
+  RiverSnapshot,
   SatelliteSnapshot,
+  ShipSnapshot,
+  SightingArea,
+  SourceNotConfigured,
   TileOutOfRange,
+  TransitFeedSnapshot,
+  TransitVehicles,
+  TsunamiSnapshot,
+  UnknownCamera,
   UpstreamUnavailable,
+  VolcanoSnapshot,
+  WeatherAlertSnapshot,
+  WebcamArea,
 } from './domain.ts';
 
 const LatitudeParam = Schema.FiniteFromString.pipe(Schema.decodeTo(Latitude));
@@ -29,9 +54,11 @@ export class SystemApi extends HttpApiGroup.make('system', { topLevel: true }).a
   HttpApiEndpoint.get('health', '/health', {
     success: Schema.Struct({ ok: Schema.Literal(true), app: Schema.String, stage: Schema.String }),
   }),
+  /** Keys for services the browser calls directly, and which keyed sources are configured. */
+  HttpApiEndpoint.get('config', '/config', { success: ClientConfig }),
   /** Every feed's freshness: current version, last update, size and last error. */
   HttpApiEndpoint.get('catalog', '/catalog', { success: Catalog }),
-  /** Conditions at a point (weather, elevation, time zone). */
+  /** Conditions at a point (weather, air quality, elevation, time zone). */
   HttpApiEndpoint.get('here', '/here', {
     query: {
       lat: LatitudeParam,
@@ -53,6 +80,35 @@ export class FeedsApi extends HttpApiGroup.make('feeds')
     HttpApiEndpoint.get('fires', '/fires', { success: FireSnapshot, error: FeedNotReady }),
     HttpApiEndpoint.get('events', '/events', { success: EventSnapshot, error: FeedNotReady }),
     HttpApiEndpoint.get('radar', '/radar', { success: RadarSnapshot, error: FeedNotReady }),
+    HttpApiEndpoint.get('metars', '/metars', { success: MetarSnapshot, error: FeedNotReady }),
+    HttpApiEndpoint.get('buoys', '/buoys', { success: BuoySnapshot, error: FeedNotReady }),
+    HttpApiEndpoint.get('airQuality', '/air-quality', { success: AirQualitySnapshot, error: FeedNotReady }),
+    HttpApiEndpoint.get('disasters', '/disasters', { success: DisasterSnapshot, error: FeedNotReady }),
+    HttpApiEndpoint.get('tsunamis', '/tsunamis', { success: TsunamiSnapshot, error: FeedNotReady }),
+    HttpApiEndpoint.get('weatherAlerts', '/weather-alerts', {
+      success: WeatherAlertSnapshot,
+      error: FeedNotReady,
+    }),
+    HttpApiEndpoint.get('firePerimeters', '/fire-perimeters', {
+      success: FirePerimeterSnapshot,
+      error: FeedNotReady,
+    }),
+    HttpApiEndpoint.get('volcanoes', '/volcanoes', { success: VolcanoSnapshot, error: FeedNotReady }),
+    HttpApiEndpoint.get('aurora', '/aurora', { success: AuroraSnapshot, error: FeedNotReady }),
+    HttpApiEndpoint.get('rivers', '/rivers', { success: RiverSnapshot, error: FeedNotReady }),
+    HttpApiEndpoint.get('ships', '/ships', { success: ShipSnapshot, error: FeedNotReady }),
+    /**
+     * Large and medium airports worldwide, without runways or links: the rest
+     * of the snapshot comes by tile (`/api/live/airports`), for the area in view.
+     */
+    HttpApiEndpoint.get('airports', '/airports', { success: AirportSnapshot, error: FeedNotReady }),
+    HttpApiEndpoint.get('transitFeeds', '/transit-feeds', {
+      success: TransitFeedSnapshot,
+      error: FeedNotReady,
+    }),
+    HttpApiEndpoint.get('bikeSystems', '/bike-systems', { success: BikeSystemSnapshot, error: FeedNotReady }),
+    HttpApiEndpoint.get('lightning', '/lightning', { success: LightningSnapshot, error: FeedNotReady }),
+    HttpApiEndpoint.get('cameras', '/cameras', { success: CameraSnapshot, error: FeedNotReady }),
   )
   .prefix('/feeds') {}
 
@@ -67,6 +123,49 @@ export class LiveApi extends HttpApiGroup.make('live')
       query: { lat: LatitudeParam, lon: LongitudeParam },
       success: AircraftNearby,
       error: UpstreamUnavailable,
+    }),
+    /** Every open airport in a zoom-8 tile, with runways and full details. */
+    HttpApiEndpoint.get('airports', '/airports/:z/:x/:y', {
+      params: TileParams,
+      success: AirportsInTile,
+      error: [FeedNotReady, TileOutOfRange],
+    }),
+    /** Transit vehicles in a zoom-10 tile, from every keyless GTFS-realtime feed covering it. */
+    HttpApiEndpoint.get('transit', '/transit/:z/:x/:y', {
+      params: TileParams,
+      success: TransitVehicles,
+      error: [FeedNotReady, TileOutOfRange],
+    }),
+    /** Bike-share stations in a zoom-11 tile, with bikes and docks available now. */
+    HttpApiEndpoint.get('bikes', '/bikes/:z/:x/:y', {
+      params: TileParams,
+      success: BikeStations,
+      error: [FeedNotReady, TileOutOfRange],
+    }),
+    /**
+     * The most viewed webcams in a tile (Windy), at most a couple of minutes old:
+     * Windy's image URLs expire. 404 when this deployment has no Windy key.
+     */
+    HttpApiEndpoint.get('webcams', '/webcams/:z/:x/:y', {
+      params: TileParams,
+      success: WebcamArea,
+      error: [UpstreamUnavailable, TileOutOfRange, SourceNotConfigured],
+    }),
+    /** The latest wildlife sightings with photos in a tile (iNaturalist). */
+    HttpApiEndpoint.get('wildlife', '/wildlife/:z/:x/:y', {
+      params: TileParams,
+      success: SightingArea,
+      error: [UpstreamUnavailable, TileOutOfRange],
+    }),
+    /**
+     * The latest frame of a traffic camera whose operator serves it only over
+     * HTTP (`relayed` in the cameras feed), by camera id. Any query string is
+     * ignored; clients vary it to pick up new frames.
+     */
+    HttpApiEndpoint.get('cameraImage', '/cameras/:id/image', {
+      params: { id: Schema.String.check(Schema.isPattern(/^[a-z]+-[\w.-]{1,120}$/)) },
+      success: Schema.Uint8Array.pipe(HttpApiSchema.asUint8Array({ contentType: 'image/jpeg' })),
+      error: [UnknownCamera, UpstreamUnavailable],
     }),
   )
   .prefix('/live') {}

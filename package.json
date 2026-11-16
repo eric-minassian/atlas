@@ -17,12 +17,17 @@
   },
   "dependencies": {
     "@ericminassian/platform": "^0.3.0",
-    "effect": "^4.1.4"
+    "csv-parse": "7.0.3",
+    "effect": "^4.1.4",
+    "gtfs-realtime-bindings": "2.2.0",
+    "h5wasm": "0.10.3",
+    "unzipit": "2.1.1"
   },
   "devDependencies": {
     "@effect/tsgo": "^0.69.0",
     "@effect/vitest": "^4.1.4",
     "@ericminassian/plat": "^0.3.0",
+    "@mapbox/vector-tile": "^3.0.0",
     "@playwright/test": "^1.65.1",
     "@tailwindcss/vite": "^4.3.5",
     "@types/node": "^24.19.2",
@@ -37,6 +42,7 @@
     "oxfmt": "^0.78.0",
     "oxlint": "^1.93.0",
     "oxlint-tsgolint": "^7.0.2007",
+    "pbf": "^5.1.2",
     "radix-ui": "^1.8.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

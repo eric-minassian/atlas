@@ -24,19 +24,54 @@ describe('refresh', () => {
       const memory = yield* Platform.Memory;
 
       const first = yield* refresher.tick;
-      assert.deepStrictEqual(first, ['satellites', 'earthquakes', 'fires', 'events', 'radar']);
+      assert.deepStrictEqual(first, [
+        'satellites',
+        'earthquakes',
+        'fires',
+        'events',
+        'radar',
+        'metars',
+        'buoys',
+        'airQuality',
+        'disasters',
+        'tsunamis',
+        'weatherAlerts',
+        'firePerimeters',
+        'volcanoes',
+        'aurora',
+        'rivers',
+        'ships',
+        'airports',
+        'transitFeeds',
+        'bikeSystems',
+        'lightning',
+        'cameras',
+      ]);
       assert.deepStrictEqual(
         (yield* memory.sent).map((m) => m.body),
         first.map((feed) => ({ feed })),
       );
       for (const feed of first) yield* refresher.refresh(feed);
 
+      // Every source answered from its fixtures: none failed, so none is retried early.
+      for (const [feed, feedState] of yield* (yield* FeedStore).states)
+        assert.isUndefined(feedState.error, feed);
       assert.deepStrictEqual(yield* refresher.tick, []);
       yield* TestClock.adjust('1 minute');
-      assert.deepStrictEqual(yield* refresher.tick, ['earthquakes']);
+      assert.deepStrictEqual(yield* refresher.tick, ['earthquakes', 'lightning']);
       yield* refresher.refresh('earthquakes');
       yield* TestClock.adjust('5 minutes');
-      assert.deepStrictEqual(yield* refresher.tick, ['earthquakes', 'radar']);
+      assert.deepStrictEqual(yield* refresher.tick, [
+        'earthquakes',
+        'radar',
+        'metars',
+        'airQuality',
+        'tsunamis',
+        'weatherAlerts',
+        'aurora',
+        'ships',
+        'lightning',
+      ]);
     }).pipe(Effect.provide(pipeline())),
   );
 
@@ -47,7 +82,7 @@ describe('refresh', () => {
         .collection('feeds', { schema: FeedState, partition: 'kind', sort: 'feed' })
         .put({ kind: 'feed', feed: 'retired', intervalSeconds: 60, attemptedAt: 0, failures: 0 });
       assert.deepStrictEqual([...(yield* (yield* FeedStore).states).keys()], []);
-      assert.strictEqual((yield* (yield* Refresher).tick).length, 5);
+      assert.strictEqual((yield* (yield* Refresher).tick).length, 21);
     }).pipe(Effect.provide(pipeline())),
   );
 

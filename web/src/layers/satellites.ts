@@ -194,10 +194,12 @@ export const satelliteLayer: LayerDef = {
           { label: 'Inclination', value: `${formatNumber(data.inclination[i] as number)}°` },
           { label: 'Elements epoch', value: Number.isFinite(epoch) ? formatAge(now - epoch) : '—' },
         ],
-        link: {
-          label: 'CelesTrak catalog entry',
-          href: `https://celestrak.org/satcat/table-satcat.php?CATNR=${data.noradId[i]}`,
-        },
+        links: [
+          {
+            label: 'CelesTrak catalog entry',
+            href: `https://celestrak.org/satcat/table-satcat.php?CATNR=${data.noradId[i]}`,
+          },
+        ],
         position: () => {
           const r = satrec(i);
           const p = r ? ecfAt(r, globe.now()) : undefined;

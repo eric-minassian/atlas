@@ -1,0 +1,29 @@
+[
+  {
+    "id": "1b3248f9-f26e-4f36-943f-b7a7731595fb",
+    "name": "QBB @ Crescent St",
+    "latitude": 40.750889,
+    "longitude": -73.940613,
+    "area": "Queens",
+    "isOnline": "true",
+    "imageUrl": "https://webcams.nyctmc.org/api/cameras/1b3248f9-f26e-4f36-943f-b7a7731595fb/image"
+  },
+  {
+    "id": "09afb231-ef10-470f-bf54-0f44fc2dc18f",
+    "name": "Pelham Shore Rd @ City Island Rd",
+    "latitude": 40.864552,
+    "longitude": -73.813781,
+    "area": "Bronx",
+    "isOnline": "true",
+    "imageUrl": "https://webcams.nyctmc.org/api/cameras/09afb231-ef10-470f-bf54-0f44fc2dc18f/image"
+  },
+  {
+    "id": "bfcd953c-3faf-48ea-a49a-848c706399b6",
+    "name": "Narrows Rd South @ Hylan Blvd",
+    "latitude": 40.605488,
+    "longitude": -74.076704,
+    "area": "Staten Island",
+    "isOnline": "true",
+    "imageUrl": "https://webcams.nyctmc.org/api/cameras/bfcd953c-3faf-48ea-a49a-848c706399b6/image"
+  }
+]

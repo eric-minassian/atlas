@@ -4,11 +4,16 @@ import { Kbd } from '@/components/ui/kbd';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Inspector, type Selection } from './components/Inspector.tsx';
 import { defaultSettings, type LayerSettings, LayerPanel } from './components/LayerPanel.tsx';
+import { PanoramaOverlay, usePanorama } from './components/PanoramaOverlay.tsx';
 import { SearchDialog } from './components/SearchDialog.tsx';
-import type { Pick } from './globe/globe.ts';
-import { useCatalog, useNow, usePersistentState } from './hooks.ts';
+import { loadConfig } from './config.ts';
+import { flyToPlace } from './data/geocode.ts';
+import type { PlaceHit } from './data/places.ts';
+import type { Basemap, Pick } from './globe/globe.ts';
+import { useCatalog, useLayerStates, useNow, usePersistentState } from './hooks.ts';
 import { layerById, layers } from './layers/registry.ts';
 import type { Details, SearchHit } from './layers/types.ts';
+import { cn } from './lib/utils.ts';
 import { World } from './world.ts';
 
 const SETTINGS_KEY = 'atlas:layers:v1';
@@ -25,26 +30,41 @@ export function App() {
   const [hover, setHover] = useState<{ title: string; x: number; y: number }>();
   const pointer = useRef({ x: 0, y: 0 });
   const statuses = useCatalog();
+  const [view, setView] = usePersistentState<{ readonly basemap: Basemap }>('atlas:view:v1', {
+    basemap: 'satellite',
+  });
+  useLayerStates(world);
+  const inPanorama = usePanorama(world?.street) !== undefined;
 
-  // The globe and its layers live outside React: created when their container mounts.
+  // Map credits (imagery, terrain, 3D tiles) go here; Cesium keeps them current for what's on screen.
+  const credits = useRef<HTMLDivElement | null>(null);
+
+  // The globe and its layers live outside React: created when their container mounts, once
+  // this deployment's config (which keys it has) is known.
   const mountGlobe = useCallback((element: HTMLDivElement | null) => {
     container.current = element;
     if (!element) return undefined;
-    try {
-      const w = new World(element);
-      setWorld(w);
-      // A handle for poking at the scene from devtools during development.
-      if (import.meta.env.DEV) Object.assign(window, { atlas: w });
-      return () => {
-        setWorld(undefined);
-        w.destroy();
-      };
-    } catch (error) {
-      // No WebGL (or it was refused): keep the page usable and say why the globe is missing.
-      console.error(error);
-      setGlobeError(true);
-      return undefined;
-    }
+    let cancelled = false;
+    let created: World | undefined;
+    void (async () => {
+      const config = await loadConfig();
+      if (cancelled || !credits.current) return;
+      try {
+        created = new World(element, config, credits.current);
+        setWorld(created);
+        // A handle for poking at the scene from devtools during development.
+        if (import.meta.env.DEV) Object.assign(window, { atlas: created });
+      } catch (error) {
+        // No WebGL (or it was refused): keep the page usable and say why the globe is missing.
+        console.error(error);
+        setGlobeError(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      setWorld(undefined);
+      created?.destroy();
+    };
   }, []);
 
   useEffect(() => {
@@ -60,6 +80,10 @@ export function App() {
       }
     }
   }, [world, settings]);
+
+  useEffect(() => {
+    void world?.setBasemap(view.basemap);
+  }, [world, view.basemap]);
 
   const select = useCallback(
     (next: Selection | undefined) => {
@@ -111,13 +135,20 @@ export function App() {
     if (details?.position) {
       world.follow(details.position);
       setFollowing(true);
-    }
+    } else if (details?.extent) world.globe.flyToBounds(details.extent);
   };
 
+  const goToPlace = (place: PlaceHit) => {
+    if (!world) return;
+    select(undefined);
+    flyToPlace(world.globe, place);
+  };
+
+  // Credit the sources of what's drawing now; map imagery credits itself (the `credits` element).
   const visibleSources = [
     ...new Set(
-      layers
-        .filter((l) => settings.visible[l.id] ?? l.defaultVisible)
+      (world?.available ?? [])
+        .filter((l) => world?.state(l.id).kind === 'shown')
         .map((l) => layerById.get(l.id)?.source.name ?? ''),
     ),
   ].filter(Boolean);
@@ -140,7 +171,17 @@ export function App() {
           </div>
         )}
 
-        <div className="pointer-events-none absolute inset-0 flex flex-col p-3 sm:p-4">
+        {world && inPanorama && (
+          <div className="pointer-events-none absolute inset-0">
+            <PanoramaOverlay viewer={world.street} />
+          </div>
+        )}
+        <div
+          className={cn(
+            'pointer-events-none absolute inset-0 flex flex-col p-3 sm:p-4',
+            inPanorama && 'hidden',
+          )}
+        >
           <TopBar
             panelOpen={panelOpen}
             onTogglePanel={() => setPanelOpen((open) => !open)}
@@ -150,9 +191,12 @@ export function App() {
             <div className="flex max-h-full min-h-0">
               {panelOpen && (
                 <LayerPanel
+                  world={world}
                   settings={settings}
                   statuses={statuses}
+                  basemap={view.basemap}
                   onChange={setSettings}
+                  onBasemap={(basemap) => setView({ ...view, basemap })}
                   onClose={() => setPanelOpen(false)}
                 />
               )}
@@ -168,10 +212,13 @@ export function App() {
             )}
           </div>
           <footer className="mt-2 flex justify-end">
-            <p className="pointer-events-auto max-w-full truncate rounded bg-black/40 px-2 py-0.5 text-[10.5px] text-white/55">
-              {visibleSources.join(' · ')}
-              {selection?.kind === 'place' && ' · Open-Meteo'}
-            </p>
+            <div className="pointer-events-auto flex max-w-full min-w-0 items-center gap-1.5 rounded bg-black/40 px-2 py-0.5 text-[10.5px] text-white/55">
+              <div ref={credits} className="atlas-credits flex shrink-0 items-center whitespace-nowrap" />
+              <p className="min-w-0 truncate">
+                {visibleSources.join(' · ')}
+                {selection?.kind === 'place' && ' · Open-Meteo'}
+              </p>
+            </div>
           </footer>
         </div>
 
@@ -184,7 +231,13 @@ export function App() {
           </div>
         )}
 
-        <SearchDialog world={world} open={searchOpen} onOpenChange={setSearchOpen} onSelect={goTo} />
+        <SearchDialog
+          world={world}
+          open={searchOpen}
+          onOpenChange={setSearchOpen}
+          onSelect={goTo}
+          onPlace={goToPlace}
+        />
       </div>
     </TooltipProvider>
   );

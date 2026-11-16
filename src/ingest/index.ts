@@ -1,11 +1,28 @@
-import { Context, Layer } from 'effect';
+import { Storage } from '@ericminassian/platform';
+import { Context, Effect, Layer } from 'effect';
 import type { FeedId } from '../domain.ts';
+import { makeAirportSource } from './airports.ts';
+import { makeAirQualitySource } from './airquality.ts';
+import { makeAuroraSource } from './aurora.ts';
+import { makeBikeSystemSource } from './bike-systems.ts';
+import { makeBuoySource } from './buoys.ts';
+import { makeCameraSource } from './cameras.ts';
+import { makeDisasterSource } from './disasters.ts';
 import { makeEarthquakeSource } from './earthquakes.ts';
 import { makeEventSource } from './events.ts';
 import { makeFireSource } from './fires.ts';
+import { makeLightningSource } from './lightning.ts';
+import { makeMetarSource } from './metars.ts';
+import { makePerimeterSource } from './perimeters.ts';
 import { makeRadarSource } from './radar.ts';
+import { makeRiverSource } from './rivers.ts';
 import { makeSatelliteSource } from './satellites.ts';
+import { makeShipSource } from './ships.ts';
 import type { Source } from './source.ts';
+import { makeTransitFeedSource } from './transit-feeds.ts';
+import { makeTsunamiSource } from './tsunamis.ts';
+import { makeVolcanoSource } from './volcanoes.ts';
+import { makeWeatherAlertSource } from './weatheralerts.ts';
 
 export type { IngestResult, Source, Validators } from './source.ts';
 export { IngestError } from './source.ts';
@@ -18,13 +35,34 @@ export { IngestError } from './source.ts';
 export class Sources extends Context.Service<Sources, { readonly [F in FeedId]: Source<F> }>()(
   'atlas/ingest/Sources',
 ) {
-  static readonly layer = Layer.sync(Sources, () =>
-    Sources.of({
-      satellites: makeSatelliteSource(),
-      earthquakes: makeEarthquakeSource(),
-      fires: makeFireSource(),
-      events: makeEventSource(),
-      radar: makeRadarSource(),
+  // Storage: sources that cache static reference data (NWS zone outlines) keep it in `snapshots`.
+  static readonly layer = Layer.effect(
+    Sources,
+    Effect.gen(function* () {
+      const snapshots = (yield* Storage).store('snapshots');
+      return Sources.of({
+        satellites: makeSatelliteSource(),
+        earthquakes: makeEarthquakeSource(),
+        fires: makeFireSource(),
+        events: makeEventSource(),
+        radar: makeRadarSource(),
+        metars: makeMetarSource(),
+        buoys: makeBuoySource(),
+        airQuality: makeAirQualitySource(),
+        disasters: makeDisasterSource(),
+        tsunamis: makeTsunamiSource(),
+        weatherAlerts: makeWeatherAlertSource(snapshots),
+        firePerimeters: makePerimeterSource(),
+        volcanoes: makeVolcanoSource(),
+        aurora: makeAuroraSource(),
+        rivers: makeRiverSource(),
+        ships: makeShipSource(),
+        airports: makeAirportSource(),
+        transitFeeds: makeTransitFeedSource(),
+        bikeSystems: makeBikeSystemSource(),
+        lightning: makeLightningSource(),
+        cameras: makeCameraSource(),
+      });
     }),
   );
 }

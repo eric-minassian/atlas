@@ -1,5 +1,4 @@
 import { Effect, Schema } from 'effect';
-import { feeds } from '../catalog.ts';
 import type { RadarData } from '../domain.ts';
 import { decodeJson, get, okText, type Source, updated } from './source.ts';
 
@@ -20,7 +19,6 @@ export const parseRadar = (maps: WeatherMaps): RadarData => ({
 });
 
 export const makeRadarSource = (): Source<'radar'> => ({
-  interval: Effect.succeed(feeds.radar.intervalSeconds),
   read: () =>
     Effect.gen(function* () {
       const response = yield* get(MAPS_URL);

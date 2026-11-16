@@ -1,6 +1,6 @@
 import { Db, Storage } from '@ericminassian/platform';
 import { Context, DateTime, Effect, Layer, Option, Random, Schema } from 'effect';
-import { type FeedData, FeedId, type FeedStatus } from './domain.ts';
+import { type FeedData, FeedId, type FeedStatus, Snapshots } from './domain.ts';
 import type { Validators } from './ingest/index.ts';
 
 /**
@@ -68,6 +68,8 @@ export class FeedStore extends Context.Service<
     failed(feed: FeedId, error: string): Effect.Effect<void>;
     /** The current snapshot, cached in memory by version. */
     read(feed: FeedId): Effect.Effect<Option.Option<Snapshot>>;
+    /** The current snapshot's payload, decoded; none if there is none or it no longer decodes. */
+    payload<F extends FeedId>(feed: F): Effect.Effect<Option.Option<FeedData[F]>>;
     hasSnapshot(feed: FeedId): Effect.Effect<boolean>;
   }
 >()('atlas/FeedStore') {
@@ -167,6 +169,17 @@ export class FeedStore extends Context.Service<
         return Option.some(snapshot);
       });
 
+      const payload = Effect.fn('FeedStore.payload')(function* <F extends FeedId>(feed: F) {
+        const snapshot = yield* read(feed);
+        if (Option.isNone(snapshot)) return Option.none<FeedData[F]>();
+        // A schema change can leave a stored snapshot that no longer decodes: start over then.
+        const schema = Schema.fromJsonString(
+          Snapshots[feed] as unknown as Schema.Codec<{ data: FeedData[F] }>,
+        );
+        const decoded = yield* Schema.decodeEffect(schema)(snapshot.value.body).pipe(Effect.option);
+        return Option.map(decoded, (s) => s.data);
+      });
+
       const hasSnapshot = (feed: FeedId) =>
         Effect.map(get(feed), (state) => Option.isSome(state) && state.value.version !== undefined);
 
@@ -179,6 +192,7 @@ export class FeedStore extends Context.Service<
         unchanged,
         failed,
         read,
+        payload,
       });
     }),
   );

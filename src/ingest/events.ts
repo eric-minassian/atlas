@@ -1,5 +1,4 @@
 import { Effect, Schema } from 'effect';
-import { feeds } from '../catalog.ts';
 import type { EventData, NaturalEvent } from '../domain.ts';
 import { decodeJson, get, notModified, okText, round, type Source, updated } from './source.ts';
 
@@ -88,7 +87,6 @@ export const parseEvents = (body: Events): EventData => {
 };
 
 export const makeEventSource = (): Source<'events'> => ({
-  interval: Effect.succeed(feeds.events.intervalSeconds),
   read: (validators) =>
     Effect.gen(function* () {
       const response = yield* get(EVENTS_URL, { validators });

@@ -2,9 +2,7 @@ import {
   ArcType,
   type Billboard,
   BillboardCollection,
-  Cartesian2,
   Cartesian3,
-  Cartographic,
   Color,
   Material,
   Math as CesiumMath,
@@ -12,22 +10,20 @@ import {
   PolylineCollection,
 } from 'cesium';
 import { Effect } from 'effect';
+import { contains } from '../../../src/area.ts';
 import { aircraftCategories, aircraftSources } from '../../../src/catalog.ts';
 import type { AircraftData, AircraftNearby } from '../../../src/domain.ts';
 import { callApi } from '../client.ts';
 import { layerStatus } from '../data/status.ts';
-import type { Globe, PickId } from '../globe/globe.ts';
+import type { PickId } from '../globe/globe.ts';
 import { formatAge, formatBearing, formatInt, formatLatLon, metersToFeet, msToKnots } from '../lib/format.ts';
+import { advance } from '../lib/motion.ts';
 import type { Details, LayerDef, LayerHandle, SearchHit } from './types.ts';
 
-const EARTH_RADIUS = 6_371_000;
 const NM = 1852;
-/** Above this camera height the 250 nm area is a small part of the view: ask the viewer to zoom in. */
-const MAX_HEIGHT = 2_500_000;
 const POLL_MS = 10_000;
 /** Beyond this, positions stay where they were last reported rather than being extrapolated. */
 const MAX_EXTRAPOLATION_S = 120;
-const UPDATE_MS = 200;
 
 const bands = [
   { label: 'On ground', color: '#8b919b', below: 0 },
@@ -54,18 +50,6 @@ const planeIcon = `data:image/svg+xml,${encodeURIComponent(
     'fill="#fff" stroke="rgba(0,0,0,0.65)" stroke-width="1.5"/></svg>',
 )}`;
 
-/** Position after flying `seconds` along `track` at `speed`, on a sphere (good enough for minutes). */
-const advance = (lat: number, lon: number, track: number, speed: number, seconds: number) => {
-  const d = (speed * seconds) / EARTH_RADIUS;
-  const t = CesiumMath.toRadians(track);
-  const φ = CesiumMath.toRadians(lat);
-  const dλ = (d * Math.sin(t)) / Math.max(0.01, Math.cos(φ));
-  return {
-    lat: lat + CesiumMath.toDegrees(d * Math.cos(t)),
-    lon: CesiumMath.toDegrees(CesiumMath.negativePiToPi(CesiumMath.toRadians(lon) + dλ)),
-  };
-};
-
 /** A circle of `radius` meters around a point, as lon/lat pairs. */
 const circle = (lat: number, lon: number, radius: number): number[] => {
   const points: number[] = [];
@@ -74,18 +58,6 @@ const circle = (lat: number, lon: number, radius: number): number[] => {
     points.push(p.lon, p.lat);
   }
   return points;
-};
-
-/** The point at the center of the view, or undefined when the view's center is sky. */
-const viewCenter = (globe: Globe) => {
-  const canvas = globe.scene.canvas;
-  const hit = globe.scene.camera.pickEllipsoid(
-    new Cartesian2(canvas.clientWidth / 2, canvas.clientHeight / 2),
-    globe.scene.globe.ellipsoid,
-  );
-  if (!hit) return undefined;
-  const c = Cartographic.fromCartesian(hit);
-  return { lat: CesiumMath.toDegrees(c.latitude), lon: CesiumMath.toDegrees(c.longitude) };
 };
 
 const describeSources = aircraftSources.map((s) => s.name).join(' and ');
@@ -98,6 +70,8 @@ export const aircraftLayer: LayerDef = {
     'Live ADS-B positions within 250 nautical miles of the center of the view, refreshed every 10 seconds. Zoom in to load them.',
   source: aircraftSources[0] ?? { name: 'adsb.fi', url: 'https://adsb.fi', license: '' },
   defaultVisible: true,
+  // Above this the 250 nm circle is a small part of the view.
+  range: { max: 2_500_000 },
   legend: bands.map(({ label, color }) => ({ label, color })),
   create(globe): LayerHandle {
     const billboards = globe.scene.primitives.add(new BillboardCollection({ scene: globe.scene }));
@@ -179,19 +153,10 @@ export const aircraftLayer: LayerDef = {
       });
     };
 
-    /** Loads the aircraft around the center of the view, or explains why it can't. */
+    /** Loads the aircraft around the center of the view. */
     const refresh = async () => {
       if (!visible || loading) return;
-      if (globe.scene.camera.positionCartographic.height > MAX_HEIGHT) {
-        clear();
-        layerStatus.set('aircraft', {
-          text: 'Zoom in',
-          detail: 'Aircraft load for the area in view once you zoom in closer.',
-          tone: 'muted',
-        });
-        return;
-      }
-      const center = viewCenter(globe);
+      const center = globe.view.center;
       if (!center) return;
       loading = true;
       const lat = Math.round(center.lat);
@@ -211,8 +176,10 @@ export const aircraftLayer: LayerDef = {
     };
 
     const poll = setInterval(() => void refresh(), POLL_MS);
-    const removeMoveEnd = globe.scene.camera.moveEnd.addEventListener(() => void refresh());
-    const animate = setInterval(() => {
+    const removeMoveEnd = globe.viewSettled.add(() => void refresh());
+    // Every frame rather than on a timer: Cesium rebuilds a billboard collection's buffers each time
+    // updates start or stop arriving between frames, so a timer would rebuild them twice per tick.
+    const stopAnimating = globe.scene.preRender.addEventListener(() => {
       if (!data || !visible) return;
       const now = globe.now();
       for (let i = 0; i < items.length; i++) {
@@ -220,7 +187,7 @@ export const aircraftLayer: LayerDef = {
         const b = items[i];
         if (b && position) b.position = position;
       }
-    }, UPDATE_MS);
+    });
 
     const describe = (icao: string): Details | undefined => {
       const i = byIcao.get(icao);
@@ -267,7 +234,7 @@ export const aircraftLayer: LayerDef = {
           { label: 'Position', value: formatLatLon(data.lat[i] as number, data.lon[i] as number) },
           { label: 'Last report', value: formatAge(globe.now() - (data.positionTime[i] as number) * 1000) },
         ],
-        link: { label: 'adsb.fi map', href: `https://globe.adsb.fi/?icao=${icao}` },
+        links: [{ label: 'adsb.fi map', href: `https://globe.adsb.fi/?icao=${icao}` }],
         position: () => {
           const index = byIcao.get(icao);
           const p = index === undefined ? undefined : positionOf(index, globe.now());
@@ -288,6 +255,13 @@ export const aircraftLayer: LayerDef = {
         }
       },
       details: describe,
+      countIn(bounds) {
+        if (!data) return 0;
+        let n = 0;
+        for (let i = 0; i < data.lat.length; i++)
+          if (contains(bounds, data.lon[i] as number, data.lat[i] as number)) n++;
+        return n;
+      },
       highlight(icao) {
         selected = icao;
         const restyle = (on: boolean) => {
@@ -327,7 +301,7 @@ export const aircraftLayer: LayerDef = {
       },
       destroy() {
         clearInterval(poll);
-        clearInterval(animate);
+        stopAnimating();
         removeMoveEnd();
         globe.scene.primitives.remove(billboards);
         globe.scene.primitives.remove(area);

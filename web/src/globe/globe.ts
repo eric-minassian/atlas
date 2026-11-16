@@ -1,25 +1,41 @@
 import {
+  ArcGisBaseMapType,
+  ArcGisMapServerImageryProvider,
+  ArcGisMapService,
   buildModuleUrl,
   Cartesian2,
   Cartesian3,
   Cartographic,
+  Cesium3DTileset,
   CesiumWidget,
   ClockStep,
   Color,
   Credit,
+  createGooglePhotorealistic3DTileset,
+  createWorldTerrainAsync,
   defined,
+  DirectionalLight,
   EllipsoidTerrainProvider,
+  HeadingPitchRange,
   ImageryLayer,
+  Ion,
   JulianDate,
   Math as CesiumMath,
   Matrix4,
+  Rectangle,
+  sampleTerrain,
   type Scene,
-  TileMapServiceImageryProvider,
   ScreenSpaceEventHandler,
   ScreenSpaceEventType,
+  SunLight,
+  Terrain,
+  TileMapServiceImageryProvider,
   UrlTemplateImageryProvider,
   WebMercatorTilingScheme,
 } from 'cesium';
+import type { Bounds } from '../../../src/area.ts';
+import type { ClientConfig } from '../../../src/domain.ts';
+import { Listeners } from '../lib/listeners.ts';
 
 /** What a click or hover landed on: something a layer drew, a point on Earth, or space. */
 export type Pick =
@@ -39,6 +55,24 @@ const isPickId = (value: unknown): value is PickId =>
   typeof (value as PickId).layer === 'string' &&
   typeof (value as PickId).key === 'string';
 
+/**
+ * `satellite`: open imagery that sharpens as you zoom (NASA, then Sentinel-2,
+ * then Esri), on terrain. `photoreal`: Google's photorealistic 3D tiles, and
+ * nothing else that's a map: Google's terms forbid showing their tiles with or
+ * near other map imagery, so every base-map layer turns off in this mode.
+ */
+export type Basemap = 'satellite' | 'photoreal';
+
+/** Where the camera is and what it sees. */
+export interface View {
+  /** Camera height above the ellipsoid, meters. */
+  readonly height: number;
+  /** The part of the Earth in view; undefined when looking only at sky. */
+  readonly bounds: Bounds | undefined;
+  /** The point at the center of the screen; undefined when that's sky. */
+  readonly center: { readonly lat: number; readonly lon: number } | undefined;
+}
+
 /** A NASA GIBS layer in Web Mercator (`GoogleMapsCompatible_Level<level>`). */
 export const gibs = (
   layer: string,
@@ -51,24 +85,127 @@ export const gibs = (
     credit: new Credit('NASA GIBS'),
   });
 
+/**
+ * Terrain levels at which each sharper imagery source takes over: Blue Marble
+ * (≈600 m/px) runs out around level 7, Sentinel-2 cloudless (10 m) carries the
+ * regional scale, and Esri's 0.3–1 m imagery takes over for cities.
+ */
+const SENTINEL_FROM_LEVEL = 6;
+const ESRI_FROM_LEVEL = 11;
+/** The NASA reference overlay (borders, coarse labels) gives way to the vector labels below this level. */
+const REFERENCE_UNTIL_LEVEL = 9;
+
+/** Where the camera starts tilting toward the horizon, and how far it's tilted at street level. */
+const TILT_FROM = 12_000;
+const TILT_TO = 400;
+const STREET_PITCH = CesiumMath.toRadians(-28);
+/** Each wheel step covers this share of the way to the target pitch. */
+const TILT_EASE = 0.3;
+
+/** The pitch that suits a camera height: straight down above `TILT_FROM`, tilted near the ground. */
+export const pitchFor = (height: number): number => {
+  if (height >= TILT_FROM) return -CesiumMath.PI_OVER_TWO;
+  // Logarithmic in height: each halving of the distance tilts by about as much.
+  const t = Math.min(1, Math.log(TILT_FROM / Math.max(TILT_TO, height)) / Math.log(TILT_FROM / TILT_TO));
+  const eased = t * t * (3 - 2 * t);
+  return -CesiumMath.PI_OVER_TWO + (STREET_PITCH + CesiumMath.PI_OVER_TWO) * eased;
+};
+
+/**
+ * Ground heights outside these (meters above the ellipsoid) come from terrain
+ * loaded only coarsely, whose triangles can sit kilometers off the surface far
+ * from the camera: the Dead Sea shore and Everest's summit, with margin.
+ */
+const plausible = (height: number | undefined): number | undefined =>
+  height !== undefined && height > -600 && height < 9_000 ? height : undefined;
+
+/** Terrain level heights are sampled at without the globe: about 20 m apart, plenty for a marker. */
+const TERRAIN_SAMPLE_LEVEL = 13;
+
+/** Mean Earth radius, and the height of the highest ground a marker can sit on (with margin). */
+const EARTH_RADIUS = 6_371_000;
+const HIGHEST_GROUND = 9_000;
+
+/** How far the camera sees before the Earth's curve hides the ground (and ground as high as Everest). */
+export const horizonDistance = (height: number): number => {
+  const h = Math.max(0, height);
+  return (
+    Math.sqrt((EARTH_RADIUS + h) ** 2 - EARTH_RADIUS ** 2) +
+    Math.sqrt((EARTH_RADIUS + HIGHEST_GROUND) ** 2 - EARTH_RADIUS ** 2)
+  );
+};
+
+/** The horizon has to move this much (as a share) before every marker is updated. */
+const HORIZON_SLACK = 0.25;
+/** Markers that layers add later get the current setting on this cadence. */
+const MARKER_SWEEP_MS = 2_000;
+
+interface Depthable {
+  disableDepthTestDistance: number;
+}
+interface Collection {
+  readonly length: number;
+  get(index: number): unknown;
+}
+
+const isCollection = (value: unknown): value is Collection =>
+  typeof value === 'object' &&
+  value !== null &&
+  typeof (value as Collection).get === 'function' &&
+  typeof (value as Collection).length === 'number';
+
+/**
+ * Sets `distance` as the depth-test distance of every point, billboard and
+ * label in the scene, walking nested collections. Cesium compares before
+ * marking anything dirty, so a sweep where nothing changed costs a loop.
+ */
+const setDepthTestDistance = (collection: Collection, distance: number): void => {
+  for (let i = 0; i < collection.length; i++) {
+    const item = collection.get(i);
+    if (isCollection(item) && !(item instanceof Cesium3DTileset)) setDepthTestDistance(item, distance);
+    else if (typeof item === 'object' && item !== null && 'disableDepthTestDistance' in item)
+      (item as Depthable).disableDepthTestDistance = distance;
+  }
+};
+
+/** Below this camera height, 3D models are lit from the viewer rather than the Sun. */
+const VIEWER_LIGHT_BELOW = 200_000;
+
+/** Picks things layers drew that aren't tagged with a `PickId` (3D tile features). */
+export type Picker = (picked: unknown) => PickId | undefined;
+
 export class Globe {
   readonly widget: CesiumWidget;
   readonly scene: Scene;
+  readonly config: ClientConfig;
+  /** Fires on every camera change (a few times a second while moving): cheap work only. */
+  readonly viewChanged = new Listeners<View>();
+  /** Fires when the camera stops moving: load data for the new view here. */
+  readonly viewSettled = new Listeners<View>();
+  readonly basemapChanged = new Listeners<Basemap>();
+  private currentView: View = { height: Number.POSITIVE_INFINITY, bounds: undefined, center: undefined };
+  private currentBasemap: Basemap = 'satellite';
   private readonly day: ImageryLayer;
   private readonly night: ImageryLayer;
+  private readonly satelliteImagery: ImageryLayer[] = [];
   private readonly reference: ImageryLayer[];
+  private photoreal: Cesium3DTileset | undefined;
+  private photorealLoading: Promise<Cesium3DTileset | undefined> | undefined;
+  private readonly pickers = new Set<Picker>();
+  private isolated = false;
   private readonly handler: ScreenSpaceEventHandler;
   private following: (() => Cartesian3 | undefined) | undefined;
-  private followOffset = new Cartesian3(0, -2_500_000, 2_500_000);
-  private readonly removeFollow: () => void;
+  private readonly cleanup: Array<() => void> = [];
 
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, config: ClientConfig, creditContainer: HTMLElement) {
+    this.config = config;
+    if (config.keys.cesiumIon) Ion.defaultAccessToken = config.keys.cesiumIon;
     this.widget = new CesiumWidget(container, {
       baseLayer: false,
       terrainProvider: new EllipsoidTerrainProvider(),
       scene3DOnly: true,
       msaaSamples: 4,
-      creditContainer: document.createElement('div'),
+      creditContainer,
     });
     this.scene = this.widget.scene;
     const { scene } = this;
@@ -80,6 +217,9 @@ export class Globe {
     globe.dynamicAtmosphereLightingFromSun = true;
     globe.showGroundAtmosphere = true;
     globe.maximumScreenSpaceError = 1.5;
+    // Keep terrain tiles around the view loaded, so panning near the ground doesn't show holes.
+    globe.preloadSiblings = true;
+    globe.tileCacheSize = 300;
     scene.backgroundColor = Color.BLACK;
     scene.highDynamicRange = false;
     if (scene.skyAtmosphere) scene.skyAtmosphere.show = true;
@@ -87,14 +227,26 @@ export class Globe {
     if (scene.skyBox) scene.skyBox.show = false;
     if (scene.moon) scene.moon.show = false;
 
+    if (config.keys.cesiumIon) {
+      // No vertex normals: with them Cesium shades terrain by the Sun at every distance, so a city
+      // at night is black. Without, day and night show from space and fade to daylight up close.
+      // No water mask either: its animated waves look synthetic over real imagery of the water.
+      scene.setTerrain(new Terrain(createWorldTerrainAsync()));
+    }
+    const camera = scene.camera;
+    const controller = scene.screenSpaceCameraController;
+    // Stop a little above the ground (or a roof) rather than at it.
+    controller.minimumZoomDistance = 2;
+    controller.enableCollisionDetection = true;
+
     // Natural Earth (bundled with Cesium, geographic) under everything: the GIBS layers are
     // Web Mercator, which stops at 85°, so this is what shows at the poles.
-    globe.imageryLayers.add(
-      ImageryLayer.fromProviderAsync(
-        TileMapServiceImageryProvider.fromUrl(buildModuleUrl('Assets/Textures/NaturalEarthII')),
-        { dayAlpha: 1, nightAlpha: 0.35 },
-      ),
+    const naturalEarth = ImageryLayer.fromProviderAsync(
+      TileMapServiceImageryProvider.fromUrl(buildModuleUrl('Assets/Textures/NaturalEarthII')),
+      { dayAlpha: 1, nightAlpha: 0.35 },
     );
+    globe.imageryLayers.add(naturalEarth);
+    this.satelliteImagery.push(naturalEarth);
     // Blue Marble on the day side, VIIRS night lights on the night side.
     this.day = ImageryLayer.fromProviderAsync(
       Promise.resolve(gibs('BlueMarble_ShadedRelief_Bathymetry', { level: 8, format: 'jpg' })),
@@ -106,14 +258,39 @@ export class Globe {
     );
     globe.imageryLayers.add(this.day);
     globe.imageryLayers.add(this.night);
+    this.satelliteImagery.push(this.day, this.night);
+    // Cloudless Sentinel-2 mosaic for the regional scale.
+    const sentinel = new ImageryLayer(
+      new UrlTemplateImageryProvider({
+        url: 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2024_3857/default/g/{z}/{y}/{x}.jpg',
+        tilingScheme: new WebMercatorTilingScheme(),
+        maximumLevel: 15,
+        credit: new Credit(
+          '<a href="https://s2maps.eu" target="_blank" rel="noreferrer">Sentinel-2 cloudless by EOX</a> (Copernicus Sentinel data 2024)',
+        ),
+      }),
+      { minimumTerrainLevel: SENTINEL_FROM_LEVEL },
+    );
+    globe.imageryLayers.add(sentinel);
+    this.satelliteImagery.push(sentinel);
+    // Esri's sub-meter imagery for cities, when this deployment has an ArcGIS key.
+    if (config.keys.arcgis) {
+      ArcGisMapService.defaultAccessToken = config.keys.arcgis;
+      const esri = ImageryLayer.fromProviderAsync(
+        ArcGisMapServerImageryProvider.fromBasemapType(ArcGisBaseMapType.SATELLITE),
+        { minimumTerrainLevel: ESRI_FROM_LEVEL },
+      );
+      globe.imageryLayers.add(esri);
+      this.satelliteImagery.push(esri);
+    }
     this.reference = [
       ImageryLayer.fromProviderAsync(
         Promise.resolve(gibs('Reference_Features_15m', { level: 13, format: 'png' })),
-        { alpha: 0.55 },
+        { alpha: 0.55, maximumTerrainLevel: REFERENCE_UNTIL_LEVEL },
       ),
       ImageryLayer.fromProviderAsync(
         Promise.resolve(gibs('Reference_Labels_15m', { level: 13, format: 'png' })),
-        { alpha: 0.85 },
+        { alpha: 0.85, maximumTerrainLevel: REFERENCE_UNTIL_LEVEL },
       ),
     ];
 
@@ -124,10 +301,95 @@ export class Globe {
 
     // Start over the viewer's own longitude, guessed from their UTC offset (no permission needed).
     const lon = CesiumMath.clamp(-new Date().getTimezoneOffset() / 4, -180, 180);
-    scene.camera.setView({ destination: Cartesian3.fromDegrees(lon, 22, 21_000_000) });
+    camera.setView({ destination: Cartesian3.fromDegrees(lon, 22, 21_000_000) });
+
+    // 3D buildings and tiles are lit by `scene.light`. The Sun leaves a city at night as black
+    // boxes, so near the ground the light comes from the viewer instead. The globe's own day and
+    // night shading has faded out by then, so this only changes how models read.
+    const sun = new SunLight();
+    const flashlight = new DirectionalLight({ direction: Cartesian3.clone(camera.directionWC) });
+    this.cleanup.push(
+      scene.preRender.addEventListener(() => {
+        const near = camera.positionCartographic.height < VIEWER_LIGHT_BELOW;
+        if (near) {
+          Cartesian3.clone(camera.directionWC, flashlight.direction);
+          scene.light = flashlight;
+        } else if (scene.light !== sun) scene.light = sun;
+      }),
+    );
+
+    // Occlusion. Cesium's default skips depth-testing points against terrain (so the ground they
+    // sit on doesn't clip them) and hides what's behind the Earth with a plane at the horizon, which
+    // fails near the ground over real terrain: satellites and far-off markers showed through the
+    // Earth from street level. Instead, terrain occludes, and everything nearer than the horizon
+    // skips the test: nothing nearer than the horizon can be behind the Earth.
+    globe.depthTestAgainstTerrain = true;
+    let horizon = 0;
+    const keepHorizon = () => {
+      const reach = horizonDistance(camera.positionCartographic.height);
+      // Rewrites every marker's depth setting, so only when the horizon moved appreciably.
+      if (Math.abs(reach - horizon) / Math.max(horizon, 1) < HORIZON_SLACK) return;
+      horizon = reach;
+      setDepthTestDistance(scene.primitives, reach);
+    };
+    const horizonTimer = setInterval(() => setDepthTestDistance(scene.primitives, horizon), MARKER_SWEEP_MS);
+    this.cleanup.push(() => clearInterval(horizonTimer));
+
+    camera.percentageChanged = 0.02;
+    this.cleanup.push(
+      camera.changed.addEventListener(() => {
+        this.currentView = this.measureView();
+        this.viewChanged.emit(this.currentView);
+      }),
+      camera.moveEnd.addEventListener(() => {
+        this.currentView = this.measureView();
+        keepHorizon();
+        this.viewSettled.emit(this.currentView);
+      }),
+      scene.preRender.addEventListener(() => this.updateFollow()),
+    );
+    this.currentView = this.measureView();
+    keepHorizon();
 
     this.handler = new ScreenSpaceEventHandler(scene.canvas);
-    this.removeFollow = scene.preRender.addEventListener(() => this.updateFollow());
+
+    // Tilt toward the horizon as the wheel zooms in near the ground, and back to looking down as it
+    // zooms out: straight down, a city is a map; tilted, buildings and terrain read as 3D.
+    let pending: number | undefined;
+    const onWheel = (event: WheelEvent) => {
+      const direction = Math.sign(event.deltaY);
+      if (direction === 0 || pending !== undefined) return;
+      // After Cesium has applied the zoom, so the height is the new one.
+      pending = requestAnimationFrame(() => {
+        pending = undefined;
+        this.tiltForHeight(direction < 0 ? 'in' : 'out');
+      });
+    };
+    scene.canvas.addEventListener('wheel', onWheel, { passive: true });
+    this.cleanup.push(() => scene.canvas.removeEventListener('wheel', onWheel));
+  }
+
+  /**
+   * Eases the camera's pitch toward the one that suits its height, pivoting
+   * on the point at the center of the screen so that stays put. Only moves in
+   * the direction of the zoom, so a tilt the viewer chose isn't undone.
+   */
+  private tiltForHeight(zoom: 'in' | 'out'): void {
+    if (this.isolated || this.following) return;
+    const { scene } = this;
+    const camera = scene.camera;
+    const height = camera.positionCartographic.height;
+    const target = pitchFor(height);
+    const pitch = camera.pitch;
+    const wants = zoom === 'in' ? pitch < target - 0.01 : pitch > target + 0.01;
+    if (!wants) return;
+    const canvas = scene.canvas;
+    const pivot = this.surfaceAt(new Cartesian2(canvas.clientWidth / 2, canvas.clientHeight / 2));
+    if (!pivot) return;
+    const next = pitch + (target - pitch) * TILT_EASE;
+    const range = Cartesian3.distance(camera.positionWC, pivot);
+    camera.lookAt(pivot, new HeadingPitchRange(camera.heading, next, range));
+    camera.lookAtTransform(Matrix4.IDENTITY);
   }
 
   /** Current simulation time, epoch ms. Live by default. */
@@ -135,7 +397,59 @@ export class Globe {
     return JulianDate.toDate(this.widget.clock.currentTime).getTime();
   }
 
-  /** Adds `layers` to the imagery stack, above the base map and below the reference overlay. */
+  get view(): View {
+    return this.currentView;
+  }
+
+  get basemap(): Basemap {
+    return this.currentBasemap;
+  }
+
+  /** Whether Photorealistic 3D is possible here (it comes through Cesium ion). */
+  get canPhotoreal(): boolean {
+    return this.config.keys.cesiumIon !== null;
+  }
+
+  /** Switches the base map; layers that can't be shown on it are hidden by their owner (`World`). */
+  async setBasemap(basemap: Basemap): Promise<void> {
+    if (basemap === this.currentBasemap) return;
+    if (basemap === 'photoreal' && !this.canPhotoreal) return;
+    this.currentBasemap = basemap;
+    const photoreal = basemap === 'photoreal';
+    // Google's tiles carry their own terrain and imagery: the globe would only show through gaps.
+    this.scene.globe.show = !photoreal;
+    for (const layer of this.satelliteImagery) layer.show = !photoreal;
+    if (photoreal) {
+      const tileset = await this.loadPhotoreal();
+      if (tileset && this.currentBasemap === 'photoreal') tileset.show = true;
+    } else if (this.photoreal) {
+      this.photoreal.show = false;
+    }
+    this.basemapChanged.emit(basemap);
+  }
+
+  private loadPhotoreal(): Promise<Cesium3DTileset | undefined> {
+    this.photorealLoading ??= createGooglePhotorealistic3DTileset(
+      // Place search uses Google's geocoder while this base map is on (see the search dialog).
+      { onlyUsingWithGoogleGeocoder: true },
+      // Cesium turns collision on for these tiles by default. With it, every marker clamped to the
+      // ground is ray-cast against tile geometry read back from the GPU (seconds per frame while a
+      // city streams in); markers get terrain heights instead (`followGround`).
+      { showCreditsOnScreen: true, maximumScreenSpaceError: 8, enableCollision: false },
+    )
+      .then((tileset) => {
+        this.photoreal = this.scene.primitives.add(tileset);
+        return tileset;
+      })
+      .catch((error: unknown) => {
+        console.error('Photorealistic 3D tiles unavailable', error);
+        this.photorealLoading = undefined;
+        return undefined;
+      });
+    return this.photorealLoading;
+  }
+
+  /** Adds `layer` to the imagery stack, above the base map and below the reference overlay. */
   addImagery(layer: ImageryLayer): void {
     const layers = this.scene.globe.imageryLayers;
     const firstReference = this.reference.map((r) => layers.indexOf(r)).filter((i) => i >= 0);
@@ -154,10 +468,71 @@ export class Globe {
     }
   }
 
+  /**
+   * Hides the globe and everything drawn on it, for a panorama that surrounds
+   * the camera (anything inside the sphere would show through it). Primitives
+   * added afterwards show normally. Returns the undo.
+   */
+  isolate(): () => void {
+    const { scene } = this;
+    this.isolated = true;
+    const hidden: Array<{ show: boolean; isDestroyed?: () => boolean }> = [];
+    for (let i = 0; i < scene.primitives.length; i++) {
+      const primitive = scene.primitives.get(i) as { show: boolean; isDestroyed?: () => boolean };
+      if (primitive.show) {
+        primitive.show = false;
+        hidden.push(primitive);
+      }
+    }
+    const globeShown = scene.globe.show;
+    scene.globe.show = false;
+    return () => {
+      this.isolated = false;
+      for (const primitive of hidden) if (!primitive.isDestroyed?.()) primitive.show = true;
+      scene.globe.show = globeShown;
+    };
+  }
+
   /** Real day and night, or the whole Earth in daylight. */
   setLighting(enabled: boolean): void {
     this.scene.globe.enableLighting = enabled;
     this.night.show = enabled;
+  }
+
+  /**
+   * Ground height (meters above the ellipsoid) at a point, from what's loaded:
+   * terrain on the satellite base map, the 3D tiles on Photorealistic. Undefined
+   * when nothing is loaded there yet.
+   */
+  heightAt(lon: number, lat: number): number | undefined {
+    // Hidden (inside a panorama, or under Photorealistic 3D), the globe can't answer.
+    if (this.isolated || !this.scene.globe.show) return undefined;
+    return plausible(this.scene.globe.getHeight(Cartographic.fromDegrees(lon, lat)));
+  }
+
+  /**
+   * Ground heights for many points at once: from the loaded terrain, or with
+   * the globe hidden under Photorealistic 3D, sampled from the terrain data
+   * (Google's tiles sit on the same ground). Sampling the tiles themselves
+   * would render the scene once per point.
+   */
+  async groundHeights(
+    points: ReadonlyArray<{ readonly lon: number; readonly lat: number }>,
+  ): Promise<Array<number | undefined>> {
+    if (this.isolated || points.length === 0) return points.map(() => undefined);
+    if (this.scene.globe.show) return points.map((p) => this.heightAt(p.lon, p.lat));
+    const sampled = await sampleTerrain(
+      this.scene.terrainProvider,
+      TERRAIN_SAMPLE_LEVEL,
+      points.map((p) => Cartographic.fromDegrees(p.lon, p.lat)),
+    ).catch(() => []);
+    return points.map((_, i) => plausible(sampled[i]?.height));
+  }
+
+  /** Lets a layer resolve picks of things it can't tag with a `PickId` (3D tile features). */
+  addPicker(picker: Picker): () => void {
+    this.pickers.add(picker);
+    return () => this.pickers.delete(picker);
   }
 
   /** Calls `onPick` for clicks, and `onHover` (throttled) as the pointer moves. */
@@ -180,12 +555,54 @@ export class Globe {
     if (defined(picked)) {
       const id = (picked as { id?: unknown }).id;
       if (isPickId(id)) return { kind: 'entity', layer: id.layer, key: id.key };
+      for (const picker of this.pickers) {
+        const resolved = picker(picked);
+        if (resolved) return { kind: 'entity', ...resolved };
+      }
     }
     if (!includePlaces) return { kind: 'none' };
-    const cartesian = this.scene.camera.pickEllipsoid(position, this.scene.globe.ellipsoid);
-    if (!cartesian) return { kind: 'none' };
-    const c = Cartographic.fromCartesian(cartesian);
+    const point = this.surfaceAt(position);
+    if (!point) return { kind: 'none' };
+    const c = Cartographic.fromCartesian(point);
     return { kind: 'place', lat: CesiumMath.toDegrees(c.latitude), lon: CesiumMath.toDegrees(c.longitude) };
+  }
+
+  /** The point on the surface (terrain or 3D tiles) under a screen position. */
+  surfaceAt(position: Cartesian2): Cartesian3 | undefined {
+    const { scene } = this;
+    if (this.currentBasemap === 'photoreal' && scene.pickPositionSupported) {
+      const p = scene.pickPosition(position);
+      if (defined(p)) return p;
+    }
+    const ray = scene.camera.getPickRay(position);
+    const onTerrain = ray ? scene.globe.pick(ray, scene) : undefined;
+    return onTerrain ?? scene.camera.pickEllipsoid(position, scene.globe.ellipsoid);
+  }
+
+  private measureView(): View {
+    const { scene } = this;
+    const camera = scene.camera;
+    const rect = camera.computeViewRectangle(scene.globe.ellipsoid);
+    const canvas = scene.canvas;
+    const middle = camera.pickEllipsoid(
+      new Cartesian2(canvas.clientWidth / 2, canvas.clientHeight / 2),
+      scene.globe.ellipsoid,
+    );
+    const center = middle ? Cartographic.fromCartesian(middle) : undefined;
+    return {
+      height: camera.positionCartographic.height,
+      bounds: rect
+        ? {
+            west: CesiumMath.toDegrees(rect.west),
+            south: CesiumMath.toDegrees(rect.south),
+            east: CesiumMath.toDegrees(rect.east),
+            north: CesiumMath.toDegrees(rect.north),
+          }
+        : undefined,
+      center: center
+        ? { lat: CesiumMath.toDegrees(center.latitude), lon: CesiumMath.toDegrees(center.longitude) }
+        : undefined,
+    };
   }
 
   /** Keeps the camera on a moving thing, letting the user orbit around it. */
@@ -198,8 +615,7 @@ export class Globe {
     const target = position();
     if (!target) return;
     const range = Math.max(150_000, Cartographic.fromCartesian(target).height * 1.2 + 400_000);
-    this.followOffset = new Cartesian3(0, -range * 0.7, range * 0.7);
-    this.scene.camera.lookAt(target, this.followOffset);
+    this.scene.camera.lookAt(target, new Cartesian3(0, -range * 0.7, range * 0.7));
   }
 
   get isFollowing(): boolean {
@@ -222,8 +638,17 @@ export class Globe {
     this.scene.camera.flyTo({ destination: Cartesian3.fromDegrees(lon, lat, height), duration: 1.6 });
   }
 
+  /** Flies to show an area. */
+  flyToBounds(bounds: Bounds): void {
+    this.follow(undefined);
+    this.scene.camera.flyTo({
+      destination: Rectangle.fromDegrees(bounds.west, bounds.south, bounds.east, bounds.north),
+      duration: 1.6,
+    });
+  }
+
   destroy(): void {
-    this.removeFollow();
+    for (const dispose of this.cleanup) dispose();
     this.handler.destroy();
     this.widget.destroy();
   }

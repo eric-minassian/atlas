@@ -1,8 +1,10 @@
 import { Cartesian3, Color, NearFarScalar, PointPrimitiveCollection } from 'cesium';
+import { contains } from '../../../src/area.ts';
 import { feeds } from '../../../src/catalog.ts';
 import type { FireData } from '../../../src/domain.ts';
 import { feedPoller, type Snapshot } from '../data/feeds.ts';
 import type { PickId } from '../globe/globe.ts';
+import { trackGround } from '../globe/ground.ts';
 import { formatAge, formatLatLon, formatNumber, formatUtc } from '../lib/format.ts';
 import type { Details, LayerDef, LayerHandle } from './types.ts';
 
@@ -24,7 +26,7 @@ const bandOf = (frp: number) => {
 export const fireLayer: LayerDef = {
   id: 'fires',
   title: 'Fire detections',
-  category: 'earth',
+  category: 'hazards',
   description:
     'Thermal anomalies seen by the VIIRS instrument on NOAA-20 in the past 24 hours: wildfires, agricultural burns, flares.',
   source: feeds.fires.source,
@@ -35,6 +37,18 @@ export const fireLayer: LayerDef = {
     const points = globe.scene.primitives.add(new PointPrimitiveCollection());
     let data: FireData | undefined;
     let version = '';
+    const ground = trackGround(globe, () =>
+      data && points.length === data.lat.length
+        ? {
+            size: data.lat.length,
+            lon: (i) => data?.lon[i] as number,
+            lat: (i) => data?.lat[i] as number,
+            place: (i, position) => {
+              points.get(i).position = position;
+            },
+          }
+        : undefined,
+    );
 
     const render = (snapshot: Snapshot<'fires'>) => {
       data = snapshot.data;
@@ -52,6 +66,7 @@ export const fireLayer: LayerDef = {
           id: { layer: 'fires', key: `${version}:${i}` } satisfies PickId,
         });
       }
+      ground.refresh();
     };
     let unsubscribe: (() => void) | undefined;
 
@@ -72,10 +87,12 @@ export const fireLayer: LayerDef = {
           { label: 'Pass', value: data.day[i] === 1 ? 'Daytime' : 'Nighttime' },
           { label: 'Radiative power', value: `${formatNumber(data.frp[i] as number)} MW` },
         ],
-        link: {
-          label: 'Open in FIRMS Fire Map',
-          href: `https://firms.modaps.eosdis.nasa.gov/map/#d:24hrs;@${lon.toFixed(3)},${lat.toFixed(3)},9.00z`,
-        },
+        links: [
+          {
+            label: 'Open in FIRMS Fire Map',
+            href: `https://firms.modaps.eosdis.nasa.gov/map/#d:24hrs;@${lon.toFixed(3)},${lat.toFixed(3)},9.00z`,
+          },
+        ],
         position: () => Cartesian3.fromDegrees(lon, lat, 0),
       };
     };
@@ -90,7 +107,15 @@ export const fireLayer: LayerDef = {
         }
       },
       details: describe,
+      countIn(bounds) {
+        if (!data) return 0;
+        let n = 0;
+        for (let i = 0; i < data.lat.length; i++)
+          if (contains(bounds, data.lon[i] as number, data.lat[i] as number)) n++;
+        return n;
+      },
       destroy() {
+        ground.stop();
         unsubscribe?.();
         globe.scene.primitives.remove(points);
       },

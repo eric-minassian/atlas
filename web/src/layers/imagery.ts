@@ -12,7 +12,12 @@ import {
 import { feeds } from '../../../src/catalog.ts';
 import { feedPoller, type Snapshot } from '../data/feeds.ts';
 import { type Globe, gibs } from '../globe/globe.ts';
+import { extractNames } from './names.ts';
 import type { LayerDef, LayerHandle } from './types.ts';
+import { VectorLabels } from './vectorlabels.ts';
+
+/** Below this camera height, OpenStreetMap names take over from NASA's coarse label overlay. */
+const NAMES_BELOW = 150_000;
 
 /** Retries a failed tile a couple of times before leaving the hole for the next refresh. */
 export const retrying = <P extends ImageryProvider>(provider: P): P => {
@@ -25,20 +30,48 @@ export const retrying = <P extends ImageryProvider>(provider: P): P => {
 const nasaGibs = { name: 'NASA GIBS', url: 'https://www.earthdata.nasa.gov/gibs', license: 'NASA open data' };
 
 /**
+ * Coarse weather imagery (kilometers per pixel) turns into blurry blobs over a
+ * city: fade it from `full` opacity at `from` meters of camera height down to
+ * `floor` of it at `to`.
+ */
+export interface Fade {
+  readonly from: number;
+  readonly to: number;
+  readonly floor: number;
+}
+
+export const fadeFactor = (fade: Fade | undefined, height: number): number => {
+  if (!fade || height >= fade.from) return 1;
+  if (height <= fade.to) return fade.floor;
+  const t = (height - fade.to) / (fade.from - fade.to);
+  return fade.floor + (1 - fade.floor) * t * t * (3 - 2 * t);
+};
+
+/**
  * An imagery layer whose provider is rebuilt every `refreshMs` (for sources
  * that publish new frames at the same URL), or never.
  */
 const imageryHandle = (
   globe: Globe,
   makeProvider: () => ImageryProvider,
-  options: { readonly opacity: number; readonly refreshMs?: number },
+  options: {
+    readonly opacity: number;
+    readonly refreshMs?: number;
+    readonly fade?: Fade;
+  },
 ): LayerHandle => {
   let layer: ImageryLayer | undefined;
   let opacity = options.opacity;
   let timer: ReturnType<typeof setInterval> | undefined;
+  const alpha = () => opacity * fadeFactor(options.fade, globe.view.height);
+  const stopFade = options.fade
+    ? globe.viewChanged.add(() => {
+        if (layer) layer.alpha = alpha();
+      })
+    : undefined;
 
   const mount = () => {
-    const next = new ImageryLayer(retrying(makeProvider()), { alpha: opacity });
+    const next = new ImageryLayer(retrying(makeProvider()), { alpha: alpha() });
     globe.addImagery(next);
     const previous = layer;
     layer = next;
@@ -64,9 +97,10 @@ const imageryHandle = (
     },
     setOpacity(value) {
       opacity = value;
-      if (layer) layer.alpha = value;
+      if (layer) layer.alpha = alpha();
     },
     destroy() {
+      stopFade?.();
       if (timer) clearInterval(timer);
       unmount();
     },
@@ -143,6 +177,11 @@ export const cloudLayer: LayerDef = {
   source: { name: 'NOAA nowCOAST (GMGSI)', url: 'https://nowcoast.noaa.gov', license: 'Public domain' },
   defaultVisible: true,
   opacity: 0.85,
+  // At ~5 km per pixel the mosaic is only haze over a city.
+  range: { min: 40_000 },
+  // Imagery drapes over the globe, which Photorealistic 3D hides. (Cesium can drape it over 3D tiles,
+  // but maps every tile's vertices back from the GPU to do it: too slow while a city streams in.)
+  basemaps: ['satellite'],
   create(globe) {
     return imageryHandle(
       globe,
@@ -153,7 +192,7 @@ export const cloudLayer: LayerDef = {
           maximumLevel: 5,
           credit: new Credit('NOAA nowCOAST'),
         }),
-      { opacity: 0.85, refreshMs: 30 * 60_000 },
+      { opacity: 0.85, refreshMs: 30 * 60_000, fade: { from: 600_000, to: 50_000, floor: 0.15 } },
     );
   },
 };
@@ -167,12 +206,21 @@ export const radarLayer: LayerDef = {
   feed: 'radar',
   defaultVisible: true,
   opacity: 0.6,
+  // Imagery drapes over the globe, which Photorealistic 3D hides. (Cesium can drape it over 3D tiles,
+  // but maps every tile's vertices back from the GPU to do it: too slow while a city streams in.)
+  basemaps: ['satellite'],
   create(globe) {
     let frame = '';
     let host = '';
     let opacity = 0.6;
     let layer: ImageryLayer | undefined;
     let unsubscribe: (() => void) | undefined;
+    // Rain over your city still matters close up, so it stays faintly visible there.
+    const fade: Fade = { from: 150_000, to: 15_000, floor: 0.35 };
+    const alpha = () => opacity * fadeFactor(fade, globe.view.height);
+    const stopFade = globe.viewChanged.add(() => {
+      if (layer) layer.alpha = alpha();
+    });
 
     const show = () => {
       if (!frame) return;
@@ -185,7 +233,7 @@ export const radarLayer: LayerDef = {
             credit: new Credit('RainViewer'),
           }),
         ),
-        { alpha: opacity },
+        { alpha: alpha() },
       );
       globe.addImagery(next);
       const previous = layer;
@@ -216,9 +264,10 @@ export const radarLayer: LayerDef = {
       },
       setOpacity(value) {
         opacity = value;
-        if (layer) layer.alpha = value;
+        if (layer) layer.alpha = alpha();
       },
       destroy() {
+        stopFade();
         unsubscribe?.();
         if (layer) globe.removeImagery(layer);
       },
@@ -235,10 +284,14 @@ export const precipitationLayer: LayerDef = {
   source: nasaGibs,
   defaultVisible: false,
   opacity: 0.8,
+  // Imagery drapes over the globe, which Photorealistic 3D hides. (Cesium can drape it over 3D tiles,
+  // but maps every tile's vertices back from the GPU to do it: too slow while a city streams in.)
+  basemaps: ['satellite'],
   create(globe) {
     return imageryHandle(globe, () => gibs('IMERG_Precipitation_Rate_30min', { level: 6, format: 'png' }), {
       opacity: 0.8,
       refreshMs: 30 * 60_000,
+      fade: { from: 300_000, to: 30_000, floor: 0.3 },
     });
   },
 };
@@ -251,6 +304,9 @@ export const seaTemperatureLayer: LayerDef = {
   source: nasaGibs,
   defaultVisible: false,
   opacity: 0.85,
+  // Imagery drapes over the globe, which Photorealistic 3D hides. (Cesium can drape it over 3D tiles,
+  // but maps every tile's vertices back from the GPU to do it: too slow while a city streams in.)
+  basemaps: ['satellite'],
   create(globe) {
     return imageryHandle(
       globe,
@@ -272,6 +328,7 @@ export const trueColorLayer: LayerDef = {
   source: nasaGibs,
   defaultVisible: false,
   opacity: 1,
+  basemaps: ['satellite'],
   create(globe) {
     return imageryHandle(
       globe,
@@ -289,6 +346,7 @@ export const dayNightLayer: LayerDef = {
   description: "Lights the globe from the Sun's current position, with city lights on the night side.",
   source: nasaGibs,
   defaultVisible: true,
+  basemaps: ['satellite'],
   create(globe) {
     return { setVisible: (visible) => globe.setLighting(visible), destroy: () => globe.setLighting(true) };
   },
@@ -298,10 +356,29 @@ export const referenceLayer: LayerDef = {
   id: 'reference',
   title: 'Borders and labels',
   category: 'base',
-  description: 'Coastlines, country borders and place names.',
+  description:
+    'Borders and place names: countries and regions from afar, then cities, neighbourhoods, streets and house numbers as you zoom in.',
   source: nasaGibs,
   defaultVisible: true,
+  basemaps: ['satellite'],
   create(globe) {
-    return { setVisible: (visible) => globe.setReference(visible), destroy: () => globe.setReference(false) };
+    // NASA's overlay names countries and regions from afar; closer in, names come from OpenStreetMap
+    // as screen-space labels (cities, then neighbourhoods, streets and house numbers).
+    const names = new VectorLabels(globe, {
+      layer: 'reference',
+      extract: extractNames,
+      pickable: false,
+      maxHeight: NAMES_BELOW,
+    });
+    return {
+      setVisible(visible) {
+        globe.setReference(visible);
+        names.setActive(visible);
+      },
+      destroy() {
+        names.destroy();
+        globe.setReference(false);
+      },
+    };
   },
 };

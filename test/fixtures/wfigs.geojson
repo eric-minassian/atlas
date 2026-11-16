@@ -1,0 +1,406 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -94.7308,
+       34.3414
+      ],
+      [
+       -94.7203,
+       34.3418
+      ],
+      [
+       -94.7004,
+       34.3358
+      ],
+      [
+       -94.6865,
+       34.3378
+      ],
+      [
+       -94.6893,
+       34.3325
+      ],
+      [
+       -94.6994,
+       34.3332
+      ],
+      [
+       -94.7,
+       34.3291
+      ],
+      [
+       -94.7197,
+       34.3332
+      ],
+      [
+       -94.7246,
+       34.3277
+      ],
+      [
+       -94.7288,
+       34.334
+      ],
+      [
+       -94.7329,
+       34.3334
+      ],
+      [
+       -94.7308,
+       34.3414
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "poly_IncidentName": "RX Buck Creek",
+    "poly_GISAcres": 805.4,
+    "poly_PolygonDateTime": 1773876855534,
+    "poly_IRWINID": "{CD72CDA6-E2EA-47F1-94AA-513BAC026C46}",
+    "attr_IncidentName": "RX Buck Creek",
+    "attr_IncidentSize": 805,
+    "attr_PercentContained": null,
+    "attr_FireDiscoveryDateTime": 1773835560000,
+    "attr_FireCause": "Undetermined",
+    "attr_POOState": "US-OK",
+    "attr_POOCounty": "McCurtain",
+    "attr_IncidentTypeCategory": "RX",
+    "attr_UniqueFireIdentifier": "2026-AROUF-000964",
+    "attr_IrwinID": "{CD72CDA6-E2EA-47F1-94AA-513BAC026C46}",
+    "attr_TotalIncidentPersonnel": null
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        -121.7019,
+        36.3083
+       ],
+       [
+        -121.691,
+        36.2967
+       ],
+       [
+        -121.688,
+        36.2917
+       ],
+       [
+        -121.6676,
+        36.2845
+       ],
+       [
+        -121.6678,
+        36.2682
+       ],
+       [
+        -121.6578,
+        36.2647
+       ],
+       [
+        -121.6431,
+        36.2531
+       ],
+       [
+        -121.634,
+        36.2563
+       ],
+       [
+        -121.6251,
+        36.2528
+       ],
+       [
+        -121.6222,
+        36.2372
+       ],
+       [
+        -121.6286,
+        36.222
+       ],
+       [
+        -121.638,
+        36.2125
+       ],
+       [
+        -121.6741,
+        36.2139
+       ],
+       [
+        -121.6991,
+        36.2169
+       ],
+       [
+        -121.6933,
+        36.2109
+       ],
+       [
+        -121.711,
+        36.1967
+       ],
+       [
+        -121.7382,
+        36.2118
+       ],
+       [
+        -121.7533,
+        36.2256
+       ],
+       [
+        -121.7751,
+        36.2453
+       ],
+       [
+        -121.7725,
+        36.2769
+       ],
+       [
+        -121.7629,
+        36.2868
+       ],
+       [
+        -121.7298,
+        36.3014
+       ],
+       [
+        -121.7084,
+        36.303
+       ],
+       [
+        -121.7019,
+        36.3083
+       ]
+      ]
+     ],
+     [
+      [
+       [
+        -121.6432,
+        36.2569
+       ],
+       [
+        -121.6437,
+        36.2571
+       ],
+       [
+        -121.6434,
+        36.2572
+       ],
+       [
+        -121.6432,
+        36.2569
+       ]
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "poly_IncidentName": "Timber",
+    "poly_GISAcres": 25349.505227651814,
+    "poly_PolygonDateTime": 1789518000000,
+    "poly_IRWINID": "{51374D2C-D96B-40F7-940B-6CB8E0A483A2}",
+    "attr_IncidentName": "Timber",
+    "attr_IncidentSize": 25350,
+    "attr_PercentContained": 100,
+    "attr_FireDiscoveryDateTime": 1786246500000,
+    "attr_FireCause": "Undetermined",
+    "attr_POOState": "US-CA",
+    "attr_POOCounty": "Monterey",
+    "attr_IncidentTypeCategory": "WF",
+    "attr_UniqueFireIdentifier": "2026-CALPF-002271",
+    "attr_IrwinID": "{51374D2C-D96B-40F7-940B-6CB8E0A483A2}",
+    "attr_TotalIncidentPersonnel": 148
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        -105.0722,
+        37.9494
+       ],
+       [
+        -105.0309,
+        37.9621
+       ],
+       [
+        -105.0876,
+        37.999
+       ],
+       [
+        -105.1219,
+        38.0074
+       ],
+       [
+        -105.1271,
+        38.0161
+       ],
+       [
+        -105.0757,
+        38.0658
+       ],
+       [
+        -105.0603,
+        38.1124
+       ],
+       [
+        -105.064,
+        38.1482
+       ],
+       [
+        -105.0301,
+        38.2107
+       ],
+       [
+        -104.9206,
+        38.1703
+       ],
+       [
+        -104.9667,
+        38.1511
+       ],
+       [
+        -104.9548,
+        38.1221
+       ],
+       [
+        -104.9359,
+        38.1048
+       ],
+       [
+        -104.9251,
+        38.0732
+       ],
+       [
+        -104.8601,
+        38.0476
+       ],
+       [
+        -104.9289,
+        38.027
+       ],
+       [
+        -104.891,
+        38.0039
+       ],
+       [
+        -104.8747,
+        37.9503
+       ],
+       [
+        -104.9145,
+        37.9261
+       ],
+       [
+        -104.9773,
+        37.9396
+       ],
+       [
+        -105.0379,
+        37.9306
+       ],
+       [
+        -105.0722,
+        37.9494
+       ]
+      ]
+     ],
+     [
+      [
+       [
+        -105.0565,
+        38.0956
+       ],
+       [
+        -105.0634,
+        38.0876
+       ],
+       [
+        -105.0586,
+        38.0826
+       ],
+       [
+        -105.049,
+        38.0823
+       ],
+       [
+        -105.0569,
+        38.0795
+       ],
+       [
+        -105.0465,
+        38.0728
+       ],
+       [
+        -105.0492,
+        38.07
+       ],
+       [
+        -105.0345,
+        38.0747
+       ],
+       [
+        -105.0286,
+        38.0804
+       ],
+       [
+        -105.0291,
+        38.0889
+       ],
+       [
+        -105.048,
+        38.0935
+       ],
+       [
+        -105.0499,
+        38.0914
+       ],
+       [
+        -105.0533,
+        38.0938
+       ],
+       [
+        -105.0509,
+        38.0964
+       ],
+       [
+        -105.0565,
+        38.0956
+       ]
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "poly_IncidentName": "Aspen Acres",
+    "poly_GISAcres": 102003.46033741273,
+    "poly_PolygonDateTime": 1785648600000,
+    "poly_IRWINID": "{1CDF5E5A-F22E-4352-A582-C2A47663B93D}",
+    "attr_IncidentName": "Aspen Acres",
+    "attr_IncidentSize": 102007,
+    "attr_PercentContained": 96,
+    "attr_FireDiscoveryDateTime": 1782734686000,
+    "attr_FireCause": "Human",
+    "attr_POOState": "US-CO",
+    "attr_POOCounty": "Custer",
+    "attr_IncidentTypeCategory": "WF",
+    "attr_UniqueFireIdentifier": "2026-COCUX-001160",
+    "attr_IrwinID": "{1CDF5E5A-F22E-4352-A582-C2A47663B93D}",
+    "attr_TotalIncidentPersonnel": 1
+   }
+  }
+ ]
+}

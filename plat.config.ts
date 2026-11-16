@@ -20,6 +20,10 @@ const app = defineApp({
   worker: { timeoutSeconds: 120, memoryMb: 1024 },
   db: true,
   storage: ['snapshots'],
+  // Keys for sources that need an account. Browser-side keys (ion, ArcGIS, Mapillary) are
+  // restricted by referrer at the provider and reach the page through `/api/config`; the
+  // rest stay on the server. A source whose key isn't set is left out rather than failing.
+  secrets: ['CESIUM_ION_TOKEN', 'ARCGIS_API_KEY', 'MAPILLARY_TOKEN', 'AISSTREAM_KEY', 'WINDY_WEBCAMS_KEY'],
   queues: { refresh: queue<RefreshJob>({ batchSize: 1, maxReceiveCount: 2 }) },
   crons: { tick: 'rate(1 minute)' },
 });
