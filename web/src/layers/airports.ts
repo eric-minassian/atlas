@@ -51,7 +51,10 @@ const typeLabel: Readonly<Record<AirportType, string>> = {
  * the global feed; the rest load by tile once the view is a city or two across.
  */
 const MEDIUM_HEIGHT = 900_000;
-const TILE_HEIGHT = 150_000;
+const TILE_HEIGHT = 80_000;
+/** Below these the smaller kinds show; higher up they're specks that crowd out the rest. */
+const SMALL_HEIGHT = 60_000;
+const MINOR_HEIGHT = 25_000;
 const RUNWAY_HEIGHT = 60_000;
 /** Labels at once, at most: past this they overlap into noise anyway. */
 const MAX_LABELS = 300;
@@ -195,7 +198,13 @@ export const airportLayer: LayerDef = {
       const position = Cartesian3.fromDegrees(lon, lat, 0);
       const id = { layer: 'airports', key: ident } satisfies PickId;
       const below =
-        type === 'large' ? Number.POSITIVE_INFINITY : type === 'medium' ? MEDIUM_HEIGHT : TILE_HEIGHT * 1.2;
+        type === 'large'
+          ? Number.POSITIVE_INFINITY
+          : type === 'medium'
+            ? MEDIUM_HEIGHT
+            : type === 'small'
+              ? SMALL_HEIGHT
+              : MINOR_HEIGHT;
       const entry: Drawn = {
         ident,
         type,
@@ -483,7 +492,9 @@ export const airportLayer: LayerDef = {
         for (const d of drawn) {
           if (!shown.has(d.type)) continue;
           if (d.type === 'medium' && height > MEDIUM_HEIGHT) continue;
-          if (d.type !== 'large' && d.type !== 'medium' && height > TILE_HEIGHT) continue;
+          if (d.type === 'small' && height > SMALL_HEIGHT) continue;
+          if (d.type !== 'large' && d.type !== 'medium' && d.type !== 'small' && height > MINOR_HEIGHT)
+            continue;
           if (contains(bounds, d.lon, d.lat)) n++;
         }
         return n;

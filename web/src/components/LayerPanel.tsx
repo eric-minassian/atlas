@@ -1,4 +1,4 @@
-import { ChevronRight, CircleAlert, Clock3, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, CircleAlert, Clock3, X } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
@@ -33,6 +33,13 @@ export const defaultSettings: LayerSettings = {
   hidden: Object.fromEntries(layers.flatMap((l) => (l.defaultHidden ? [[l.id, l.defaultHidden]] : []))),
 };
 
+interface PanelState {
+  /** Catalog categories open. */
+  readonly categories: Readonly<Record<string, boolean>>;
+  /** Layers in view showing their legend, filters and opacity. */
+  readonly expanded?: Readonly<Record<string, boolean>>;
+}
+
 interface Props {
   readonly world: World | undefined;
   readonly settings: LayerSettings;
@@ -59,10 +66,7 @@ const isInView = (layer: LayerDef, state: LayerState) =>
  */
 export function LayerPanel({ world, settings, statuses, basemap, onChange, onBasemap, onClose }: Props) {
   useLayerStates(world);
-  const [open, setOpen] = usePersistentState<{ readonly categories: Readonly<Record<string, boolean>> }>(
-    'atlas:panel:v1',
-    { categories: {} },
-  );
+  const [open, setOpen] = usePersistentState<PanelState>('atlas:panel:v1', { categories: {}, expanded: {} });
   const offered = world?.available ?? layers;
   const inView = offered.filter((l) => world && isInView(l, world.state(l.id)));
 
@@ -120,6 +124,8 @@ export function LayerPanel({ world, settings, statuses, basemap, onChange, onBas
                   layer={layer}
                   settings={settings}
                   status={layer.feed ? statuses.get(layer.feed) : undefined}
+                  expanded={open.expanded?.[layer.id] ?? false}
+                  onExpand={(next) => setOpen({ ...open, expanded: { ...open.expanded, [layer.id]: next } })}
                   onChange={onChange}
                 />
               ))}
@@ -135,7 +141,9 @@ export function LayerPanel({ world, settings, statuses, basemap, onChange, onBas
               <Collapsible
                 key={category.id}
                 open={open.categories[category.id] ?? false}
-                onOpenChange={(next) => setOpen({ categories: { ...open.categories, [category.id]: next } })}
+                onOpenChange={(next) =>
+                  setOpen({ ...open, categories: { ...open.categories, [category.id]: next } })
+                }
               >
                 <CollapsibleTrigger className="group flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-[12px] text-foreground/85 hover:bg-white/[0.04]">
                   <ChevronRight className="size-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
@@ -231,18 +239,25 @@ function CatalogRow({
   );
 }
 
-/** A layer drawing in the view: its count and freshness, legend, filters and opacity. */
+/**
+ * A layer drawing in the view: its count and freshness, and behind a chevron
+ * its legend, filters and opacity, so a long "In view" list stays scannable.
+ */
 function LayerRow({
   world,
   layer,
   settings,
   status,
+  expanded,
+  onExpand,
   onChange,
 }: {
   readonly world: World | undefined;
   readonly layer: LayerDef;
   readonly settings: LayerSettings;
   readonly status: FeedStatus | undefined;
+  readonly expanded: boolean;
+  readonly onExpand: (expanded: boolean) => void;
   readonly onChange: (settings: LayerSettings) => void;
 }) {
   const state = useLayerState(world, layer.id);
@@ -252,6 +267,9 @@ function LayerRow({
   const inView = state.kind === 'shown' ? state.inView : undefined;
   // A filter for a source this deployment hasn't configured would switch nothing.
   const offeredFilters = layer.filters?.filter((f) => !world || (f.available?.(world.config) ?? true));
+  const hasControls = Boolean(
+    layer.legend || (offeredFilters && offeredFilters.length > 1) || opacity !== undefined,
+  );
 
   const setOpacity = (value: number) =>
     onChange({ ...settings, opacity: { ...settings.opacity, [layer.id]: value } });
@@ -277,8 +295,19 @@ function LayerRow({
         ) : (
           <LiveMeta layer={layer.id} inView={inView} />
         )}
+        {hasControls && (
+          <button
+            type="button"
+            onClick={() => onExpand(!expanded)}
+            aria-expanded={expanded}
+            aria-label={`${expanded ? 'Hide' : 'Show'} ${layer.title} options`}
+            className="-mr-1 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            <ChevronDown className={cn('size-3.5 transition-transform', expanded && 'rotate-180')} />
+          </button>
+        )}
       </div>
-      {(layer.legend || (offeredFilters && offeredFilters.length > 1) || opacity !== undefined) && (
+      {hasControls && expanded && (
         <div className="mt-2 ml-[38px] space-y-2 pb-0.5">
           {layer.legend && (
             <ul className="flex flex-wrap gap-x-3 gap-y-1">

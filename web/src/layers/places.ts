@@ -21,13 +21,15 @@ const COLOR = Color.fromCssColorString('#ece4d0');
 
 /**
  * Decluttering by significance: each tile's places come in relevance order,
- * and lower-ranked ones show (and get labels) only nearer the camera.
+ * and lower-ranked ones show (and get labels) only nearer the camera. Dots
+ * run a little ahead of labels, not far: unlabeled dots read as noise.
  */
 const dotTiers: Tiers = [
-  [40, 80_000],
-  [120, 25_000],
-  [300, 10_000],
-  [500, 4_000],
+  [15, 80_000],
+  [50, 25_000],
+  [120, 8_000],
+  [250, 3_000],
+  [500, 1_200],
 ];
 const labelTiers: Tiers = [
   [3, 80_000],

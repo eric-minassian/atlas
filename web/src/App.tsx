@@ -213,7 +213,7 @@ export function App() {
           </div>
           <footer className="mt-2 flex justify-end">
             <div className="pointer-events-auto flex max-w-full min-w-0 items-center gap-1.5 rounded bg-black/40 px-2 py-0.5 text-[10.5px] text-white/55">
-              <div ref={credits} className="atlas-credits flex min-w-0 shrink items-center" />
+              <div ref={credits} className="atlas-credits flex shrink-0 items-center whitespace-nowrap" />
               <p className="min-w-0 truncate">
                 {visibleSources.join(' · ')}
                 {selection?.kind === 'place' && ' · Open-Meteo'}

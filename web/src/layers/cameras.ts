@@ -43,7 +43,8 @@ export const cameraLayer: LayerDef = {
   source: feeds.cameras.source,
   feed: 'cameras',
   defaultVisible: true,
-  range: { max: 300_000 },
+  // Higher up, thousands of highway cameras become chains of dots along every road.
+  range: { max: 40_000 },
   filters: kinds,
   create(globe): LayerHandle {
     const windy = globe.config.sources.windy;
