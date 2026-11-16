@@ -28,7 +28,7 @@ const sizeFor = (magnitude: number | null) => 3 + Math.max(0, (magnitude ?? 2.5)
 export const earthquakeLayer: LayerDef = {
   id: 'earthquakes',
   title: 'Earthquakes',
-  category: 'earth',
+  category: 'hazards',
   description: 'Magnitude 2.5 and up worldwide over the past week, sized by magnitude and colored by age.',
   source: feeds.earthquakes.source,
   feed: 'earthquakes',

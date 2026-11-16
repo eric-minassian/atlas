@@ -44,10 +44,10 @@ const openMeteo: Upstream = (call) =>
     : recorded(call);
 
 /** The app on a fresh in-memory platform, plus a FeedStore over the same storage to publish with. */
-const setup = (upstream: Upstream = openMeteo) =>
+const setup = (upstream: Upstream = openMeteo, secrets: Record<string, string> = {}) =>
   Effect.gen(function* () {
     const http = fakeHttp(upstream);
-    const platform = yield* Layer.build(Platform.layerMemory());
+    const platform = yield* Layer.build(Platform.layerMemory({ secrets }));
     const app = toFetchHandler(HttpLive.pipe(Layer.provide([Layer.succeedContext(platform), http.layer])));
     yield* Effect.addFinalizer(() => Effect.promise(app.dispose));
     const fetch = createPlatformFetch(app);
@@ -84,6 +84,37 @@ describe('api', () => {
     resetPlatform();
   });
   const errors = () => telemetry.events.filter((e) => e.t === 'err');
+
+  it.effect('gives the browser the keys it uses, and says which keyed sources are set up', () =>
+    Effect.gen(function* () {
+      const { client, get } = yield* setup();
+      assert.deepStrictEqual(yield* client.config(), {
+        keys: { cesiumIon: null, arcgis: null, mapillary: null },
+        sources: { aisstream: false, windy: false },
+      });
+      assert.strictEqual(
+        (yield* get('/api/config')).headers.get('cache-control'),
+        'public, max-age=300, stale-while-revalidate=600',
+      );
+    }),
+  );
+
+  it.effect('passes configured keys through, but never a server-side one', () =>
+    Effect.gen(function* () {
+      const { client, get } = yield* setup(openMeteo, {
+        CESIUM_ION_TOKEN: 'ion-token',
+        MAPILLARY_TOKEN: 'MLY|token',
+        AISSTREAM_KEY: 'ais-secret',
+      });
+      assert.deepStrictEqual(yield* client.config(), {
+        keys: { cesiumIon: 'ion-token', arcgis: null, mapillary: 'MLY|token' },
+        sources: { aisstream: true, windy: false },
+      });
+      const response = yield* get('/api/config');
+      const body = yield* Effect.promise(() => response.text());
+      assert.notInclude(body, 'ais-secret');
+    }),
+  );
 
   it.effect('reports health', () =>
     Effect.gen(function* () {

@@ -34,7 +34,7 @@ const labelOf = new Map(kinds.map((k) => [k.id, k.label]));
 export const eventLayer: LayerDef = {
   id: 'events',
   title: 'Natural events',
-  category: 'earth',
+  category: 'hazards',
   description:
     'Ongoing wildfires, storms, volcanic eruptions and ice events curated by NASA, with storm tracks.',
   source: feeds.events.source,

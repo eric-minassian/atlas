@@ -16,6 +16,7 @@ import {
   defined,
   DirectionalLight,
   EllipsoidTerrainProvider,
+  HeadingPitchRange,
   ImageryLayer,
   Ion,
   JulianDate,
@@ -92,6 +93,22 @@ const SENTINEL_FROM_LEVEL = 6;
 const ESRI_FROM_LEVEL = 11;
 /** The NASA reference overlay (borders, coarse labels) gives way to the vector labels below this level. */
 const REFERENCE_UNTIL_LEVEL = 9;
+
+/** Where the camera starts tilting toward the horizon, and how far it's tilted at street level. */
+const TILT_FROM = 12_000;
+const TILT_TO = 400;
+const STREET_PITCH = CesiumMath.toRadians(-28);
+/** Each wheel step covers this share of the way to the target pitch. */
+const TILT_EASE = 0.3;
+
+/** The pitch that suits a camera height: straight down above `TILT_FROM`, tilted near the ground. */
+export const pitchFor = (height: number): number => {
+  if (height >= TILT_FROM) return -CesiumMath.PI_OVER_TWO;
+  // Logarithmic in height: each halving of the distance tilts by about as much.
+  const t = Math.min(1, Math.log(TILT_FROM / Math.max(TILT_TO, height)) / Math.log(TILT_FROM / TILT_TO));
+  const eased = t * t * (3 - 2 * t);
+  return -CesiumMath.PI_OVER_TWO + (STREET_PITCH + CesiumMath.PI_OVER_TWO) * eased;
+};
 
 /** Below this camera height, 3D models are lit from the viewer rather than the Sun. */
 const VIEWER_LIGHT_BELOW = 200_000;
@@ -258,6 +275,44 @@ export class Globe {
     this.currentView = this.measureView();
 
     this.handler = new ScreenSpaceEventHandler(scene.canvas);
+
+    // Tilt toward the horizon as the wheel zooms in near the ground, and back to looking down as it
+    // zooms out: straight down, a city is a map; tilted, buildings and terrain read as 3D.
+    let pending: number | undefined;
+    const onWheel = (event: WheelEvent) => {
+      const direction = Math.sign(event.deltaY);
+      if (direction === 0 || pending !== undefined) return;
+      // After Cesium has applied the zoom, so the height is the new one.
+      pending = requestAnimationFrame(() => {
+        pending = undefined;
+        this.tiltForHeight(direction < 0 ? 'in' : 'out');
+      });
+    };
+    scene.canvas.addEventListener('wheel', onWheel, { passive: true });
+    this.cleanup.push(() => scene.canvas.removeEventListener('wheel', onWheel));
+  }
+
+  /**
+   * Eases the camera's pitch toward the one that suits its height, pivoting
+   * on the point at the center of the screen so that stays put. Only moves in
+   * the direction of the zoom, so a tilt the viewer chose isn't undone.
+   */
+  private tiltForHeight(zoom: 'in' | 'out'): void {
+    if (this.isolated || this.following) return;
+    const { scene } = this;
+    const camera = scene.camera;
+    const height = camera.positionCartographic.height;
+    const target = pitchFor(height);
+    const pitch = camera.pitch;
+    const wants = zoom === 'in' ? pitch < target - 0.01 : pitch > target + 0.01;
+    if (!wants) return;
+    const canvas = scene.canvas;
+    const pivot = this.surfaceAt(new Cartesian2(canvas.clientWidth / 2, canvas.clientHeight / 2));
+    if (!pivot) return;
+    const next = pitch + (target - pitch) * TILT_EASE;
+    const range = Cartesian3.distance(camera.positionWC, pivot);
+    camera.lookAt(pivot, new HeadingPitchRange(camera.heading, next, range));
+    camera.lookAtTransform(Matrix4.IDENTITY);
   }
 
   /** Current simulation time, epoch ms. Live by default. */

@@ -26,7 +26,7 @@ const bandOf = (frp: number) => {
 export const fireLayer: LayerDef = {
   id: 'fires',
   title: 'Fire detections',
-  category: 'earth',
+  category: 'hazards',
   description:
     'Thermal anomalies seen by the VIIRS instrument on NOAA-20 in the past 24 hours: wildfires, agricultural burns, flares.',
   source: feeds.fires.source,
