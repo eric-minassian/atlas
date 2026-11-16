@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import type { Here } from '../../../src/domain.ts';
 import { callApi } from '../client.ts';
 import { useNow } from '../hooks.ts';
-import type { Details, Field } from '../layers/types.ts';
+import type { Details, Field, Picture } from '../layers/types.ts';
 import { formatInt, formatLatLon, formatNumber } from '../lib/format.ts';
 import { describeWeather } from '../lib/weather.ts';
 import type { EntityRef, World } from '../world.ts';
@@ -108,7 +108,13 @@ function EntityInspector({
   return (
     <Panel onClose={onClose}>
       <Heading kind={details.kind} title={details.title} subtitle={details.subtitle} />
-      <Fields fields={details.fields} />
+      <div className="max-h-[calc(100vh-11rem)] overflow-y-auto">
+        {details.picture && <PictureView picture={details.picture} />}
+        {details.body && (
+          <p className="border-b px-4 py-3 text-[12px] leading-relaxed text-foreground/85">{details.body}</p>
+        )}
+        {details.fields.length > 0 && <Fields fields={details.fields} />}
+      </div>
       <footer className="flex items-center justify-between gap-2 border-t px-3 py-2.5">
         {details.position ? (
           <Button
@@ -119,22 +125,79 @@ function EntityInspector({
             {following ? <LocateFixed /> : <Crosshair />}
             {following ? 'Following' : 'Follow'}
           </Button>
+        ) : details.extent ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => details.extent && world.globe.flyToBounds(details.extent)}
+          >
+            <Crosshair />
+            Show all
+          </Button>
         ) : (
           <span />
         )}
-        {details.link && (
-          <a
-            href={details.link.href}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground"
-          >
-            {details.link.label}
-            <ArrowUpRight className="size-3.5" />
-          </a>
+        {details.links && details.links.length > 0 && (
+          <div className="flex min-w-0 flex-wrap justify-end gap-x-3 gap-y-1">
+            {details.links.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground"
+              >
+                {link.label}
+                <ArrowUpRight className="size-3.5" />
+              </a>
+            ))}
+          </div>
         )}
       </footer>
     </Panel>
+  );
+}
+
+/** A picture, reloaded every `refreshMs` when it's a live camera; keeps the last frame if a reload fails. */
+function PictureView({ picture }: { readonly picture: Picture }) {
+  const tick = useNow(picture.refreshMs ?? 24 * 3_600_000);
+  const [failed, setFailed] = useState<string>();
+  const src = picture.refreshMs
+    ? `${picture.src}${picture.src.includes('?') ? '&' : '?'}t=${Math.floor(tick / picture.refreshMs)}`
+    : picture.src;
+  const image = (
+    <img
+      src={src}
+      alt={picture.alt}
+      onError={() => setFailed(picture.src)}
+      onLoad={() => setFailed(undefined)}
+      className="block w-full bg-black/40 object-cover"
+      style={{ aspectRatio: picture.aspect ?? 16 / 9 }}
+      referrerPolicy="no-referrer"
+    />
+  );
+  return (
+    <figure className="border-b">
+      {failed === picture.src ? (
+        <div
+          className="flex w-full items-center justify-center bg-black/30 text-[12px] text-muted-foreground"
+          style={{ aspectRatio: picture.aspect ?? 16 / 9 }}
+        >
+          Image unavailable right now
+        </div>
+      ) : picture.href ? (
+        <a href={picture.href} target="_blank" rel="noreferrer">
+          {image}
+        </a>
+      ) : (
+        image
+      )}
+      {picture.credit && (
+        <figcaption className="truncate px-4 pt-1.5 pb-2 text-[11px] text-muted-foreground/80">
+          {picture.credit}
+        </figcaption>
+      )}
+    </figure>
   );
 }
 

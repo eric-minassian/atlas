@@ -3,7 +3,7 @@ import { Context, DateTime, Effect, Layer, Result } from 'effect';
 import type { HttpClient } from 'effect/http';
 import { type FeedId, feedIds } from './domain.ts';
 import { type FeedState, FeedStore } from './feeds.ts';
-import { type Source, Sources } from './ingest/index.ts';
+import { type Source, Sources, type Validators } from './ingest/index.ts';
 
 /** Ticks arrive about a minute apart; a feed due within this margin runs now rather than a minute late. */
 const SLACK_MS = 20_000;
@@ -57,15 +57,18 @@ export class Refresher extends Context.Service<
         return due;
       }).pipe(Effect.withSpan('Refresher.tick'));
 
+      /** Reads `feed`'s source, typed per feed so it gets its own previous payload. */
+      const read = <F extends FeedId>(feed: F, validators: Validators): ReturnType<Source<F>['read']> =>
+        (sources[feed] as Source<F>).read(validators, store.payload(feed));
+
       const refresh = Effect.fn('Refresher.refresh')(function* (feed: FeedId) {
-        // Widened from the per-feed source: the snapshot it yields is published under the same id.
-        const source: Source<FeedId> = sources[feed];
         const interval = yield* intervalOf(feed);
         const validators = yield* store.begin(feed, interval);
         const started = yield* now;
-        const result = yield* source
-          .read(validators)
-          .pipe(Effect.provideContext(sourceContext), Effect.result);
+        const result = yield* read(feed, validators).pipe(
+          Effect.provideContext(sourceContext),
+          Effect.result,
+        );
         const ms = (yield* now) - started;
         const log = Effect.annotateLogs({ feed, ms });
 

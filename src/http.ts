@@ -1,5 +1,5 @@
 import { AppInfo, Secrets } from '@ericminassian/platform';
-import { Effect, Layer, Option } from 'effect';
+import { Effect, Layer, Option, Redacted } from 'effect';
 import { HttpEffect, HttpServerResponse } from 'effect/http';
 import { HttpApiBuilder } from 'effect/http-api';
 import type { HttpServerRequest } from 'effect/http/HttpServerRequest';
@@ -39,6 +39,27 @@ const SystemHandlers = HttpApiBuilder.group(
     const here = yield* HereLookup;
     return handlers
       .handle('health', () => Effect.succeed({ ok: true as const, app: app.name, stage: app.stage }))
+      .handle('config', () =>
+        Effect.gen(function* () {
+          const key = (name: Parameters<typeof secrets.getOptional>[0]) =>
+            Effect.map(secrets.getOptional(name), (value) =>
+              Option.getOrNull(Option.map(value, Redacted.value)),
+            );
+          // Short: a key set or rotated with `plat secrets set` shows up within minutes.
+          yield* cacheFor('public, max-age=300, stale-while-revalidate=600');
+          return {
+            keys: {
+              cesiumIon: yield* key('CESIUM_ION_TOKEN'),
+              arcgis: yield* key('ARCGIS_API_KEY'),
+              mapillary: yield* key('MAPILLARY_TOKEN'),
+            },
+            sources: {
+              aisstream: (yield* key('AISSTREAM_KEY')) !== null,
+              windy: (yield* key('WINDY_WEBCAMS_KEY')) !== null,
+            },
+          };
+        }),
+      )
       .handle('catalog', () =>
         Effect.gen(function* () {
           yield* cacheFor('public, max-age=10, stale-while-revalidate=30');

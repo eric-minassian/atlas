@@ -1,8 +1,10 @@
 import { Cartesian3, Color, NearFarScalar, type PointPrimitive, PointPrimitiveCollection } from 'cesium';
+import { contains } from '../../../src/area.ts';
 import { feeds } from '../../../src/catalog.ts';
 import type { Earthquake } from '../../../src/domain.ts';
 import { feedPoller, type Snapshot } from '../data/feeds.ts';
 import type { PickId } from '../globe/globe.ts';
+import { trackGround } from '../globe/ground.ts';
 import { formatAge, formatInt, formatLatLon, formatNumber, formatUtc } from '../lib/format.ts';
 import type { Details, LayerDef, LayerHandle, SearchHit } from './types.ts';
 
@@ -36,6 +38,16 @@ export const earthquakeLayer: LayerDef = {
     const points = globe.scene.primitives.add(new PointPrimitiveCollection());
     let events: ReadonlyArray<Earthquake> = [];
     let byId = new Map<string, { quake: Earthquake; point: PointPrimitive }>();
+    let seated: Array<{ quake: Earthquake; point: PointPrimitive }> = [];
+    const ground = trackGround(globe, () => ({
+      size: seated.length,
+      lon: (i) => seated[i]?.quake.lon ?? 0,
+      lat: (i) => seated[i]?.quake.lat ?? 0,
+      place: (i, position) => {
+        const entry = seated[i];
+        if (entry) entry.point.position = position;
+      },
+    }));
 
     const restyle = () => {
       const now = globe.now();
@@ -61,6 +73,8 @@ export const earthquakeLayer: LayerDef = {
         });
         byId.set(quake.id, { quake, point });
       }
+      seated = [...byId.values()];
+      ground.refresh();
     };
     const timer = setInterval(restyle, 60_000);
     let unsubscribe: (() => void) | undefined;
@@ -84,7 +98,7 @@ export const earthquakeLayer: LayerDef = {
           ...(q.tsunami ? [{ label: 'Tsunami', value: 'Possible: see the tsunami warning centers' }] : []),
           ...(q.felt ? [{ label: 'Felt reports', value: formatInt(q.felt) }] : []),
         ],
-        link: { label: 'USGS event page', href: q.url },
+        links: [{ label: 'USGS event page', href: q.url }],
         position: () => Cartesian3.fromDegrees(q.lon, q.lat, 0),
       };
     };
@@ -99,6 +113,11 @@ export const earthquakeLayer: LayerDef = {
         }
       },
       details: describe,
+      countIn(bounds) {
+        let n = 0;
+        for (const quake of events) if (contains(bounds, quake.lon, quake.lat)) n++;
+        return n;
+      },
       highlight(id) {
         const entry = byId.get(id);
         if (!entry) return () => {};
@@ -127,6 +146,7 @@ export const earthquakeLayer: LayerDef = {
       },
       destroy() {
         clearInterval(timer);
+        ground.stop();
         unsubscribe?.();
         globe.scene.primitives.remove(points);
       },

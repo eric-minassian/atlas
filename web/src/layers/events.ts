@@ -8,10 +8,12 @@ import {
   PointPrimitiveCollection,
   PolylineCollection,
 } from 'cesium';
+import { contains } from '../../../src/area.ts';
 import { feeds } from '../../../src/catalog.ts';
 import type { NaturalEvent } from '../../../src/domain.ts';
 import { feedPoller, type Snapshot } from '../data/feeds.ts';
 import type { PickId } from '../globe/globe.ts';
+import { trackGround } from '../globe/ground.ts';
 import { formatAge, formatLatLon, formatNumber, formatUtc } from '../lib/format.ts';
 import type { Details, Filter, LayerDef, LayerHandle, SearchHit } from './types.ts';
 
@@ -45,6 +47,16 @@ export const eventLayer: LayerDef = {
     let events: ReadonlyArray<NaturalEvent> = [];
     let byId = new Map<string, { event: NaturalEvent; point: PointPrimitive }>();
     let shown: ReadonlySet<string> = new Set(kinds.map((k) => k.id));
+    let seated: Array<{ event: NaturalEvent; point: PointPrimitive }> = [];
+    const ground = trackGround(globe, () => ({
+      size: seated.length,
+      lon: (i) => seated[i]?.event.lon ?? 0,
+      lat: (i) => seated[i]?.event.lat ?? 0,
+      place: (i, position) => {
+        const entry = seated[i];
+        if (entry) entry.point.position = position;
+      },
+    }));
 
     const render = (snapshot: Snapshot<'events'>) => {
       events = snapshot.data.events;
@@ -76,6 +88,8 @@ export const eventLayer: LayerDef = {
           });
         }
       }
+      seated = [...byId.values()];
+      ground.refresh();
     };
     let unsubscribe: (() => void) | undefined;
 
@@ -104,7 +118,7 @@ export const eventLayer: LayerDef = {
             : []),
           ...(e.track.length > 0 ? [{ label: 'Track', value: `${e.track.length + 1} observations` }] : []),
         ],
-        ...(e.source ? { link: { label: 'Source report', href: e.source } } : {}),
+        ...(e.source ? { links: [{ label: 'Source report', href: e.source }] } : {}),
         position: () => Cartesian3.fromDegrees(e.lon, e.lat, 0),
       };
     };
@@ -124,6 +138,11 @@ export const eventLayer: LayerDef = {
         applyFilter();
       },
       details: describe,
+      countIn(bounds) {
+        let n = 0;
+        for (const e of events) if (shown.has(kindOf(e.category)) && contains(bounds, e.lon, e.lat)) n++;
+        return n;
+      },
       highlight(id) {
         const entry = byId.get(id);
         if (!entry) return () => {};
@@ -151,6 +170,7 @@ export const eventLayer: LayerDef = {
         return hits;
       },
       destroy() {
+        ground.stop();
         unsubscribe?.();
         globe.scene.primitives.remove(points);
         globe.scene.primitives.remove(tracks);

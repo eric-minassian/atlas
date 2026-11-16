@@ -9,6 +9,7 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from '
 import {
   AircraftNearby,
   Catalog,
+  ClientConfig,
   EarthquakeSnapshot,
   EventSnapshot,
   FeedNotReady,
@@ -29,6 +30,8 @@ export class SystemApi extends HttpApiGroup.make('system', { topLevel: true }).a
   HttpApiEndpoint.get('health', '/health', {
     success: Schema.Struct({ ok: Schema.Literal(true), app: Schema.String, stage: Schema.String }),
   }),
+  /** Keys for services the browser calls directly, and which keyed sources are configured. */
+  HttpApiEndpoint.get('config', '/config', { success: ClientConfig }),
   /** Every feed's freshness: current version, last update, size and last error. */
   HttpApiEndpoint.get('catalog', '/catalog', { success: Catalog }),
   /** Conditions at a point (weather, elevation, time zone). */

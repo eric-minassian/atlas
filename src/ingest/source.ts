@@ -7,7 +7,7 @@ import type { Secrets } from '@ericminassian/platform';
  * storage: `Refresher` (src/refresh.ts) decides when they run and what happens
  * to their output.
  */
-import { Effect, Schema } from 'effect';
+import { Effect, type Option, Schema } from 'effect';
 import { HttpClient, HttpClientRequest, type HttpClientResponse } from 'effect/http';
 import type { FeedData, FeedId } from '../domain.ts';
 
@@ -36,8 +36,14 @@ export class IngestError extends Schema.TaggedError<IngestError, { readonly bran
 export interface Source<F extends FeedId> {
   /** Seconds between refreshes; may depend on configuration (credentials). */
   readonly interval: Effect.Effect<number, never, Secrets>;
+  /**
+   * Reads the source. `previous` loads the payload currently published, for
+   * sources that build on it (a stream sampled for a minute only sees part of
+   * the world); it costs a storage read and a decode, so only those run it.
+   */
   readonly read: (
     validators: Validators,
+    previous: Effect.Effect<Option.Option<FeedData[F]>>,
   ) => Effect.Effect<IngestResult<F>, IngestError, HttpClient.HttpClient | Secrets>;
 }
 

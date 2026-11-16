@@ -5,6 +5,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { Inspector, type Selection } from './components/Inspector.tsx';
 import { defaultSettings, type LayerSettings, LayerPanel } from './components/LayerPanel.tsx';
 import { SearchDialog } from './components/SearchDialog.tsx';
+import { loadConfig } from './config.ts';
 import type { Pick } from './globe/globe.ts';
 import { useCatalog, useNow, usePersistentState } from './hooks.ts';
 import { layerById, layers } from './layers/registry.ts';
@@ -26,25 +27,35 @@ export function App() {
   const pointer = useRef({ x: 0, y: 0 });
   const statuses = useCatalog();
 
-  // The globe and its layers live outside React: created when their container mounts.
+  // Map credits (imagery, terrain, 3D tiles) go here; Cesium keeps them current for what's on screen.
+  const credits = useRef<HTMLDivElement | null>(null);
+
+  // The globe and its layers live outside React: created when their container mounts, once
+  // this deployment's config (which keys it has) is known.
   const mountGlobe = useCallback((element: HTMLDivElement | null) => {
     container.current = element;
     if (!element) return undefined;
-    try {
-      const w = new World(element);
-      setWorld(w);
-      // A handle for poking at the scene from devtools during development.
-      if (import.meta.env.DEV) Object.assign(window, { atlas: w });
-      return () => {
-        setWorld(undefined);
-        w.destroy();
-      };
-    } catch (error) {
-      // No WebGL (or it was refused): keep the page usable and say why the globe is missing.
-      console.error(error);
-      setGlobeError(true);
-      return undefined;
-    }
+    let cancelled = false;
+    let created: World | undefined;
+    void (async () => {
+      const config = await loadConfig();
+      if (cancelled || !credits.current) return;
+      try {
+        created = new World(element, config, credits.current);
+        setWorld(created);
+        // A handle for poking at the scene from devtools during development.
+        if (import.meta.env.DEV) Object.assign(window, { atlas: created });
+      } catch (error) {
+        // No WebGL (or it was refused): keep the page usable and say why the globe is missing.
+        console.error(error);
+        setGlobeError(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      setWorld(undefined);
+      created?.destroy();
+    };
   }, []);
 
   useEffect(() => {
@@ -168,10 +179,13 @@ export function App() {
             )}
           </div>
           <footer className="mt-2 flex justify-end">
-            <p className="pointer-events-auto max-w-full truncate rounded bg-black/40 px-2 py-0.5 text-[10.5px] text-white/55">
-              {visibleSources.join(' · ')}
-              {selection?.kind === 'place' && ' · Open-Meteo'}
-            </p>
+            <div className="pointer-events-auto flex max-w-full min-w-0 items-center gap-1.5 rounded bg-black/40 px-2 py-0.5 text-[10.5px] text-white/55">
+              <div ref={credits} className="atlas-credits flex min-w-0 shrink items-center" />
+              <p className="min-w-0 truncate">
+                {visibleSources.join(' · ')}
+                {selection?.kind === 'place' && ' · Open-Meteo'}
+              </p>
+            </div>
           </footer>
         </div>
 

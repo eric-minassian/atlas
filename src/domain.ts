@@ -278,6 +278,30 @@ export const Here = Schema.Struct({
 });
 export type Here = typeof Here.Type;
 
+/**
+ * What the browser needs to know about this deployment: the keys of services
+ * it calls directly (each restricted to Atlas's domains at the provider), and
+ * which keyed server-side sources are configured. Null or false means not set
+ * up, and the layers that need it stay out of the panel.
+ */
+export const ClientConfig = Schema.Struct({
+  keys: Schema.Struct({
+    /** Cesium ion: terrain, OSM buildings, Google Photorealistic 3D Tiles. */
+    cesiumIon: Schema.NullOr(Schema.String),
+    /** ArcGIS Location Platform: high-resolution imagery. */
+    arcgis: Schema.NullOr(Schema.String),
+    /** Mapillary client token: street-level imagery. */
+    mapillary: Schema.NullOr(Schema.String),
+  }),
+  sources: Schema.Struct({
+    /** aisstream.io: ships worldwide (without it, only the Baltic). */
+    aisstream: Schema.Boolean,
+    /** Windy: webcams worldwide. */
+    windy: Schema.Boolean,
+  }),
+});
+export type ClientConfig = typeof ClientConfig.Type;
+
 // ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------

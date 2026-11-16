@@ -17,7 +17,7 @@ const read = <F extends FeedId>(
   secrets: Record<string, string> = {},
 ) => {
   const http = fakeHttp(upstream);
-  return source.read({}).pipe(
+  return source.read({}, Effect.succeedNone).pipe(
     Effect.provide(Layer.merge(http.layer, Platform.layerMemory({ secrets }))),
     Effect.map((result) => ({ result, calls: http.calls })),
   );
@@ -92,7 +92,7 @@ describe('earthquakes (USGS)', () => {
         headers['if-modified-since'] ? new Response(null, { status: 304 }) : undefined,
       );
       const again = yield* makeEarthquakeSource()
-        .read(validators)
+        .read(validators, Effect.succeedNone)
         .pipe(Effect.provide(Layer.merge(http.layer, Platform.layerMemory())));
       assert.strictEqual(again._tag, 'NotModified');
     }),
