@@ -11,8 +11,10 @@ import { FetchHttpClient } from 'effect/http';
 import { HttpApiClient } from 'effect/http-api';
 import { afterEach, beforeEach } from 'vitest';
 import { Api } from '../src/api.ts';
+import { tileAt } from '../src/area.ts';
 import { FeedStore } from '../src/feeds.ts';
 import { HttpLive } from '../src/http.ts';
+import { makeCameraSource } from '../src/ingest/cameras.ts';
 import { FeatureCollection, parseQuakes } from '../src/ingest/earthquakes.ts';
 import { fakeHttp, fixture, recorded, type Upstream } from './support.ts';
 
@@ -44,10 +46,10 @@ const openMeteo: Upstream = (call) =>
     : recorded(call);
 
 /** The app on a fresh in-memory platform, plus a FeedStore over the same storage to publish with. */
-const setup = (upstream: Upstream = openMeteo) =>
+const setup = (upstream: Upstream = openMeteo, secrets: Record<string, string> = {}) =>
   Effect.gen(function* () {
     const http = fakeHttp(upstream);
-    const platform = yield* Layer.build(Platform.layerMemory());
+    const platform = yield* Layer.build(Platform.layerMemory({ secrets }));
     const app = toFetchHandler(HttpLive.pipe(Layer.provide([Layer.succeedContext(platform), http.layer])));
     yield* Effect.addFinalizer(() => Effect.promise(app.dispose));
     const fetch = createPlatformFetch(app);
@@ -104,6 +106,7 @@ describe('api', () => {
           ['fires', null, 1800],
           ['events', null, 900],
           ['radar', null, 300],
+          ['cameras', null, 3600],
         ],
       );
 
@@ -199,4 +202,114 @@ describe('api', () => {
       assert.strictEqual((yield* get('/api/tiles/clouds/9/0/0')).status, 404);
     }),
   );
+
+  it.effect('serves the traffic camera feed', () =>
+    Effect.gen(function* () {
+      const { client, store, get } = yield* setup();
+      const cameras = yield* readCameras;
+      yield* store.begin('cameras', 3600);
+      const { version } = yield* store.publish('cameras', cameras, cameras.id.length, {});
+      const snapshot = yield* client.feeds.cameras();
+      assert.strictEqual(snapshot.version, version);
+      assert.deepStrictEqual(snapshot.data, cameras);
+      assert.strictEqual(
+        (yield* get('/api/feeds/cameras')).headers.get('cache-control'),
+        'public, max-age=300, stale-while-revalidate=900',
+      );
+    }),
+  );
+
+  it.effect('relays frames of HTTP-only cameras by id, and nothing else', () =>
+    Effect.gen(function* () {
+      const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
+      const { store, get, calls } = yield* setup((call) =>
+        call.url.host === 'www.trimarc.org' && call.url.protocol === 'http:'
+          ? new Response(jpeg, { headers: { 'content-type': 'image/jpeg' } })
+          : undefined,
+      );
+      const cameras = yield* readCameras;
+      // Before the first snapshot, no camera is known.
+      assert.strictEqual((yield* get('/api/live/cameras/trimarc-1/image')).status, 404);
+      yield* store.begin('cameras', 3600);
+      yield* store.publish('cameras', cameras, cameras.id.length, {});
+
+      const relayed = cameras.id[cameras.relayed.indexOf(true)] as string;
+      const frame = yield* get(`/api/live/cameras/${relayed}/image?t=123`);
+      assert.strictEqual(frame.status, 200);
+      assert.strictEqual(frame.headers.get('content-type'), 'image/jpeg');
+      assert.strictEqual(frame.headers.get('cache-control'), 'public, max-age=30');
+      assert.deepStrictEqual(new Uint8Array(yield* Effect.promise(() => frame.arrayBuffer())), jpeg);
+      assert.strictEqual(
+        calls.at(-1)?.url.href,
+        'http://www.trimarc.org/images/milestone/CCTV_03_RussellvilleRd_and_CampbellLn.jpg',
+      );
+
+      const before = calls.length;
+      // A camera that browsers load directly, an id that doesn't exist, and something that isn't an id.
+      assert.strictEqual((yield* get('/api/live/cameras/tfl-00002.00865/image')).status, 404);
+      assert.strictEqual((yield* get('/api/live/cameras/tfl-99999/image')).status, 404);
+      assert.strictEqual((yield* get('/api/live/cameras/http%3A%2F%2Fexample.com/image')).status, 400);
+      assert.strictEqual(calls.length, before);
+      assert.deepStrictEqual(errors(), []);
+    }),
+  );
+
+  it.effect('reports a camera whose operator sends no image as unavailable', () =>
+    Effect.gen(function* () {
+      const { store, get } = yield* setup((call) =>
+        call.url.host === 'www.trimarc.org' ? new Response('<html>maintenance</html>') : undefined,
+      );
+      const cameras = yield* readCameras;
+      yield* store.begin('cameras', 3600);
+      yield* store.publish('cameras', cameras, cameras.id.length, {});
+      const relayed = cameras.id[cameras.relayed.indexOf(true)] as string;
+      assert.strictEqual((yield* get(`/api/live/cameras/${relayed}/image`)).status, 502);
+    }),
+  );
+
+  it.effect('looks up webcams by tile at their zoom, briefly cached', () =>
+    Effect.gen(function* () {
+      const { client, get } = yield* setup(recorded, { WINDY_WEBCAMS_KEY: 'k' });
+      const { x, y } = tileAt(8, -0.1276, 51.5072);
+      const area = yield* client.live.webcams({ params: { z: 8, x, y } });
+      assert.strictEqual(area.webcams[0]?.page, 'https://windy.com/webcams/1420893641');
+      assert.strictEqual(
+        (yield* get(`/api/live/webcams/8/${x}/${y}`)).headers.get('cache-control'),
+        'public, max-age=60, stale-while-revalidate=60',
+      );
+      assert.strictEqual((yield* get(`/api/live/webcams/9/${x}/${y}`)).status, 404);
+    }),
+  );
+
+  it.effect('answers 404 for webcams without a Windy key', () =>
+    Effect.gen(function* () {
+      const { client } = yield* setup(recorded);
+      const error = yield* Effect.flip(client.live.webcams({ params: { z: 8, x: 127, y: 85 } }));
+      assert.strictEqual(error._tag, 'SourceNotConfigured');
+    }),
+  );
+
+  it.effect('looks up wildlife sightings by tile at their zoom', () =>
+    Effect.gen(function* () {
+      const { client, get } = yield* setup(recorded);
+      const { x, y } = tileAt(11, -0.1276, 51.5072);
+      const area = yield* client.live.wildlife({ params: { z: 11, x, y } });
+      assert.strictEqual(area.sightings.length, 5);
+      assert.strictEqual(
+        (yield* get(`/api/live/wildlife/11/${x}/${y}`)).headers.get('cache-control'),
+        'public, max-age=900, stale-while-revalidate=900',
+      );
+      assert.strictEqual((yield* get(`/api/live/wildlife/12/${x}/${y}`)).status, 404);
+      assert.strictEqual((yield* get(`/api/live/wildlife/11/${2 ** 11}/0`)).status, 404);
+    }),
+  );
+});
+
+/** The camera feed's payload, read from the recorded camera lists. */
+const readCameras = Effect.gen(function* () {
+  const result = yield* makeCameraSource()
+    .read({}, Effect.succeedNone)
+    .pipe(Effect.provide(Layer.merge(fakeHttp(recorded).layer, Platform.layerMemory())));
+  if (result._tag !== 'Updated') throw new Error('expected camera data');
+  return result.data;
 });

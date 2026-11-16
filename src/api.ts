@@ -6,8 +6,10 @@
  */
 import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from 'effect/http-api';
+import { TileParams } from './area.ts';
 import {
   AircraftNearby,
+  CameraSnapshot,
   Catalog,
   ClientConfig,
   EarthquakeSnapshot,
@@ -19,8 +21,12 @@ import {
   Longitude,
   RadarSnapshot,
   SatelliteSnapshot,
+  SightingArea,
+  SourceNotConfigured,
   TileOutOfRange,
+  UnknownCamera,
   UpstreamUnavailable,
+  WebcamArea,
 } from './domain.ts';
 
 const LatitudeParam = Schema.FiniteFromString.pipe(Schema.decodeTo(Latitude));
@@ -56,6 +62,7 @@ export class FeedsApi extends HttpApiGroup.make('feeds')
     HttpApiEndpoint.get('fires', '/fires', { success: FireSnapshot, error: FeedNotReady }),
     HttpApiEndpoint.get('events', '/events', { success: EventSnapshot, error: FeedNotReady }),
     HttpApiEndpoint.get('radar', '/radar', { success: RadarSnapshot, error: FeedNotReady }),
+    HttpApiEndpoint.get('cameras', '/cameras', { success: CameraSnapshot, error: FeedNotReady }),
   )
   .prefix('/feeds') {}
 
@@ -70,6 +77,31 @@ export class LiveApi extends HttpApiGroup.make('live')
       query: { lat: LatitudeParam, lon: LongitudeParam },
       success: AircraftNearby,
       error: UpstreamUnavailable,
+    }),
+    /**
+     * The most viewed webcams in a tile (Windy), at most a couple of minutes old:
+     * Windy's image URLs expire. 404 when this deployment has no Windy key.
+     */
+    HttpApiEndpoint.get('webcams', '/webcams/:z/:x/:y', {
+      params: TileParams,
+      success: WebcamArea,
+      error: [UpstreamUnavailable, TileOutOfRange, SourceNotConfigured],
+    }),
+    /** The latest wildlife sightings with photos in a tile (iNaturalist). */
+    HttpApiEndpoint.get('wildlife', '/wildlife/:z/:x/:y', {
+      params: TileParams,
+      success: SightingArea,
+      error: [UpstreamUnavailable, TileOutOfRange],
+    }),
+    /**
+     * The latest frame of a traffic camera whose operator serves it only over
+     * HTTP (`relayed` in the cameras feed), by camera id. Any query string is
+     * ignored; clients vary it to pick up new frames.
+     */
+    HttpApiEndpoint.get('cameraImage', '/cameras/:id/image', {
+      params: { id: Schema.String.check(Schema.isPattern(/^[a-z]+-[\w.-]{1,120}$/)) },
+      success: Schema.Uint8Array.pipe(HttpApiSchema.asUint8Array({ contentType: 'image/jpeg' })),
+      error: [UnknownCamera, UpstreamUnavailable],
     }),
   )
   .prefix('/live') {}

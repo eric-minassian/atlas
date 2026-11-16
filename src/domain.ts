@@ -9,7 +9,7 @@
  */
 import { Schema } from 'effect';
 
-export const feedIds = ['satellites', 'earthquakes', 'fires', 'events', 'radar'] as const;
+export const feedIds = ['satellites', 'earthquakes', 'fires', 'events', 'radar', 'cameras'] as const;
 export const FeedId = Schema.Literals(feedIds);
 export type FeedId = typeof FeedId.Type;
 
@@ -174,6 +174,35 @@ export const RadarData = Schema.Struct({
 });
 export type RadarData = typeof RadarData.Type;
 
+/** Who runs a set of traffic cameras: credited with each, and linked for their own camera map. */
+export const CameraOperator = Schema.Struct({
+  name: Schema.String,
+  /** The operator's traffic or camera map. */
+  url: Schema.String,
+  /** Shown with each frame: the operator's required attribution, or where the list came from. */
+  credit: Schema.String,
+});
+export type CameraOperator = typeof CameraOperator.Type;
+
+/** Traffic cameras that publish a still frame, columnar. */
+export const CameraData = Schema.Struct({
+  operators: Schema.Array(CameraOperator),
+  /** `<operator>-<its id>`, stable across refreshes; the image relay is keyed by it. */
+  id: Column(Schema.String),
+  name: Column(Schema.String),
+  lon: Numbers,
+  lat: Numbers,
+  /** Index into `operators`. */
+  operator: Column(Schema.Int),
+  /** Which way the camera looks ("West", "S"), empty when unknown. */
+  view: Column(Schema.String),
+  /** Where the operator publishes the latest frame (JPEG or PNG). */
+  image: Column(Schema.String),
+  /** The frame is only served over plain HTTP: browsers load it through the API's camera relay. */
+  relayed: Column(Schema.Boolean),
+});
+export type CameraData = typeof CameraData.Type;
+
 // ---------------------------------------------------------------------------
 // Snapshots
 // ---------------------------------------------------------------------------
@@ -198,6 +227,8 @@ export const EventSnapshot = snapshot('events', EventData);
 export type EventSnapshot = typeof EventSnapshot.Type;
 export const RadarSnapshot = snapshot('radar', RadarData);
 export type RadarSnapshot = typeof RadarSnapshot.Type;
+export const CameraSnapshot = snapshot('cameras', CameraData);
+export type CameraSnapshot = typeof CameraSnapshot.Type;
 
 /** Each feed's snapshot schema. */
 export const Snapshots = {
@@ -206,6 +237,7 @@ export const Snapshots = {
   fires: FireSnapshot,
   events: EventSnapshot,
   radar: RadarSnapshot,
+  cameras: CameraSnapshot,
 } satisfies { [F in FeedId]: Schema.Top };
 
 /** Each feed's payload type. */
@@ -215,6 +247,7 @@ export interface FeedData {
   fires: FireData;
   events: EventData;
   radar: RadarData;
+  cameras: CameraData;
 }
 
 // ---------------------------------------------------------------------------
@@ -303,6 +336,80 @@ export const ClientConfig = Schema.Struct({
 export type ClientConfig = typeof ClientConfig.Type;
 
 // ---------------------------------------------------------------------------
+// Area lookups: webcams and wildlife
+// ---------------------------------------------------------------------------
+
+/** A public webcam listed by Windy. */
+export const Webcam = Schema.Struct({
+  id: Schema.String,
+  title: Schema.String,
+  lon: Schema.Finite,
+  lat: Schema.Finite,
+  city: Schema.NullOr(Schema.String),
+  country: Schema.NullOr(Schema.String),
+  /** The latest frame. Windy signs these URLs and they expire (10 minutes on the free tier). */
+  preview: Schema.Struct({ url: Schema.String, width: Schema.Int, height: Schema.Int }),
+  /** Windy's page for the webcam: Windy's terms require every image to link to it. */
+  page: Schema.String,
+  /** Today's timelapse on Windy. */
+  timelapse: Schema.NullOr(Schema.String),
+  /** Epoch ms of the latest frame. */
+  updatedAt: Schema.NullOr(Schema.Finite),
+  views: Schema.Int,
+});
+export type Webcam = typeof Webcam.Type;
+
+/** The most viewed webcams in one map tile. */
+export const WebcamArea = Schema.Struct({
+  /** Epoch ms Windy was asked. */
+  fetchedAt: Schema.Finite,
+  /** How many Windy lists in the tile; `webcams` holds the most viewed of them. */
+  total: Schema.Int,
+  webcams: Schema.Array(Webcam),
+});
+export type WebcamArea = typeof WebcamArea.Type;
+
+/** A wildlife observation with a photo, from iNaturalist. */
+export const Sighting = Schema.Struct({
+  id: Schema.Int,
+  lon: Schema.Finite,
+  lat: Schema.Finite,
+  /** The observer hid the exact spot, or the species is sensitive: the point is somewhere within ~20 km. */
+  obscured: Schema.Boolean,
+  /** Null until someone identifies it. */
+  scientificName: Schema.NullOr(Schema.String),
+  commonName: Schema.NullOr(Schema.String),
+  /** `species`, `genus`, … */
+  rank: Schema.NullOr(Schema.String),
+  /** iNaturalist's iconic taxon (`Aves`, `Plantae`, …); null when unidentified. */
+  group: Schema.NullOr(Schema.String),
+  /** `research` (community-verified), `needs_id` or `casual`. */
+  quality: Schema.String,
+  /** Epoch ms when the time was recorded, else null. */
+  observedAt: Schema.NullOr(Schema.Finite),
+  /** `YYYY-MM-DD`, local to the observer. */
+  observedOn: Schema.NullOr(Schema.String),
+  place: Schema.NullOr(Schema.String),
+  observer: Schema.String,
+  photo: Schema.Struct({
+    url: Schema.String,
+    /** iNaturalist's attribution line: "(c) Name, some rights reserved (CC BY)". */
+    attribution: Schema.String,
+  }),
+  url: Schema.String,
+});
+export type Sighting = typeof Sighting.Type;
+
+/** The latest sightings in one map tile, newest first. */
+export const SightingArea = Schema.Struct({
+  fetchedAt: Schema.Finite,
+  /** How many iNaturalist has in the tile; `sightings` holds the latest of them. */
+  total: Schema.Int,
+  sightings: Schema.Array(Sighting),
+});
+export type SightingArea = typeof SightingArea.Type;
+
+// ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
 
@@ -327,5 +434,18 @@ export class UpstreamUnavailable extends Schema.TaggedError<
 export class TileOutOfRange extends Schema.TaggedError<TileOutOfRange, { readonly brand: unique symbol }>()(
   'TileOutOfRange',
   { z: Schema.Int, x: Schema.Int, y: Schema.Int },
+  { httpApiStatus: 404 },
+) {}
+
+/** A keyed source this deployment has no key for. */
+export class SourceNotConfigured extends Schema.TaggedError<
+  SourceNotConfigured,
+  { readonly brand: unique symbol }
+>()('SourceNotConfigured', { source: Schema.String }, { httpApiStatus: 404 }) {}
+
+/** No camera with this id is relayed (the relay serves only cameras in the current snapshot that need it). */
+export class UnknownCamera extends Schema.TaggedError<UnknownCamera, { readonly brand: unique symbol }>()(
+  'UnknownCamera',
+  { id: Schema.String },
   { httpApiStatus: 404 },
 ) {}

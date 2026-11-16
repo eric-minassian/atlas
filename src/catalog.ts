@@ -48,6 +48,16 @@ export const feeds: { readonly [F in FeedId]: FeedInfo } = {
     source: { name: 'RainViewer', url: 'https://www.rainviewer.com', license: 'RainViewer API terms' },
     intervalSeconds: 5 * 60,
   },
+  cameras: {
+    title: 'Traffic cameras',
+    source: {
+      name: 'Transport agencies',
+      url: 'https://github.com/AidanWelch/OpenTrafficCamMap',
+      license: "Each operator's open data terms; OpenTrafficCamMap (MIT)",
+    },
+    // Camera lists change over weeks; the frames themselves are loaded live from each operator.
+    intervalSeconds: 60 * 60,
+  },
 };
 
 /** Where nearby-aircraft queries go, in order: the next is tried when one fails. */
@@ -74,4 +84,28 @@ export const aircraftCategories: Readonly<Record<string, string>> = {
   C1: 'Emergency vehicle',
   C2: 'Service vehicle',
   C3: 'Obstacle',
+};
+
+/** A source looked up by area (`/api/live/<source>/:z/:x/:y`), served at one tile zoom. */
+export interface AreaSource {
+  readonly source: Source;
+  readonly zoom: number;
+}
+
+/** Webcams worldwide from Windy, when this deployment has a key. */
+export const webcamSource: AreaSource = {
+  source: { name: 'Windy', url: 'https://www.windy.com/webcams', license: 'Windy Webcams API terms' },
+  // Tiles ~150 km across (less toward the poles): a city and its surroundings in one request.
+  zoom: 8,
+};
+
+/** Recent wildlife observations with photos from iNaturalist. */
+export const wildlifeSource: AreaSource = {
+  source: {
+    name: 'iNaturalist',
+    url: 'https://www.inaturalist.org',
+    license: 'Photos under their observers’ Creative Commons licenses',
+  },
+  // Tiles ~20 km across: a dense city still gets a useful sample of its latest sightings.
+  zoom: 11,
 };

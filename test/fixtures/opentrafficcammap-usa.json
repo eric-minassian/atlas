@@ -1,0 +1,141 @@
+{
+  "Ohio": {
+    "other": [
+      {
+        "description": "I-70 EB Licking county rest area",
+        "latitude": 39.945848,
+        "longitude": -82.45284,
+        "url": "https://itscameras.dot.state.oh.us/images/rest_area/I-70 EB at MM 130 Licking County PTZ.jpg",
+        "encoding": "JPEG",
+        "format": "IMAGE_STREAM"
+      },
+      {
+        "description": "SR-2 at S Ligtner Rd",
+        "latitude": 41.50557,
+        "longitude": -82.84921,
+        "url": "https://itscameras.dot.state.oh.us:443/images/toledo/SR2-EB-Approach.jpg",
+        "encoding": "JPEG",
+        "format": "IMAGE_STREAM"
+      },
+      {
+        "description": "US 68 MP 18 @ Ohio River Brdg Maysville",
+        "direction": "N",
+        "latitude": 38.683252,
+        "longitude": -83.786774,
+        "url": "https://www.trimarc.org/images/milestone/CCTV_09_US68_0180.jpg",
+        "encoding": "JPEG",
+        "format": "IMAGE_STREAM"
+      }
+    ]
+  },
+  "Kentucky": {
+    "Jefferson": [
+      {
+        "description": "I-64 at Frazier Museum",
+        "direction": "E",
+        "latitude": 38.258167,
+        "longitude": -85.764833,
+        "url": "https://www.trimarc.org/images/milestone/CCTV_05_64_0041.jpg",
+        "encoding": "JPEG",
+        "format": "IMAGE_STREAM"
+      }
+    ],
+    "Warren": [
+      {
+        "description": "Russellville Rd and Campbell Ln",
+        "latitude": 36.96865,
+        "longitude": -86.480727,
+        "url": "http://www.trimarc.org/images/milestone/CCTV_03_RussellvilleRd_and_CampbellLn.jpg",
+        "encoding": "JPEG",
+        "format": "IMAGE_STREAM"
+      }
+    ],
+    "Mason": [
+      {
+        "description": "US 68 MP 18 @ Ohio River Brdg Maysville",
+        "direction": "N",
+        "latitude": 38.683252,
+        "longitude": -83.786774,
+        "url": "https://www.trimarc.org/images/milestone/CCTV_09_US68_0180.jpg",
+        "encoding": "JPEG",
+        "format": "IMAGE_STREAM"
+      }
+    ]
+  },
+  "Indiana": {
+    "other": [
+      {
+        "description": "I-65: 1-065-242-2-1 163RD AVE",
+        "longitude": -87.30185,
+        "latitude": 41.32137,
+        "url": "https://public.carsprogram.org/cameras/IN/INDOT_471_waiiDrAO8WUuv-xs.flv.png",
+        "encoding": "JPEG",
+        "format": "IMAGE_STREAM"
+      }
+    ]
+  },
+  "Arizona": {
+    "other": [
+      {
+        "description": "I-10 EB  321.94 @Dragoon",
+        "direction": "E",
+        "latitude": 32.0760900000001,
+        "longitude": -110.06054,
+        "url": "https://az511.gov/map/Cctv/105--15",
+        "encoding": "JPEG",
+        "format": "IMAGE_STREAM"
+      }
+    ]
+  },
+  "Alabama": {
+    "Mobile": [
+      {
+        "description": "I-10 McDonald Rd",
+        "latitude": 30.53555,
+        "longitude": -88.23918,
+        "direction": "E",
+        "url": "https://cdn3.wowza.com/5/eEFlQ3ltMitMdTdk/mobile-fastly/mob-cam-c095.stream/playlist.m3u8",
+        "encoding": "H.264",
+        "format": "M3U8"
+      }
+    ]
+  },
+  "Alaska": {
+    "other": [
+      {
+        "description": "Goldstream Road @ Old Steese Hwy",
+        "latitude": 64.943933,
+        "longitude": -147.653931,
+        "url": "https://511.alaska.gov/map/Cctv/71_00--1",
+        "encoding": "JPEG",
+        "format": "IMAGE_STREAM"
+      }
+    ]
+  },
+  "California": {
+    "Mono": [
+      {
+        "description": "SR-203 : Mammoth Mountain",
+        "direction": "E",
+        "latitude": 37.64111,
+        "longitude": -118.91848,
+        "url": "https://cwwp2.dot.ca.gov/data/d9/cctv/image/sr203mammothmountain/sr203mammothmountain.jpg",
+        "encoding": "JPEG",
+        "format": "IMAGE_STREAM",
+        "updateRate": 300000
+      }
+    ]
+  },
+  "Colorado": {
+    "other": [
+      {
+        "description": "US 287 MP 54.30 NB : 0.5 miles N of CR H: North",
+        "longitude": -102.60246,
+        "latitude": 37.75138,
+        "url": "https://cocam.carsprogram.org/Cellular/287N05430CAM1RHS-N.jpg?1728089220000",
+        "encoding": "JPEG",
+        "format": "IMAGE_STREAM"
+      }
+    ]
+  }
+}

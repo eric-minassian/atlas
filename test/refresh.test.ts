@@ -24,7 +24,7 @@ describe('refresh', () => {
       const memory = yield* Platform.Memory;
 
       const first = yield* refresher.tick;
-      assert.deepStrictEqual(first, ['satellites', 'earthquakes', 'fires', 'events', 'radar']);
+      assert.deepStrictEqual(first, ['satellites', 'earthquakes', 'fires', 'events', 'radar', 'cameras']);
       assert.deepStrictEqual(
         (yield* memory.sent).map((m) => m.body),
         first.map((feed) => ({ feed })),
@@ -47,7 +47,7 @@ describe('refresh', () => {
         .collection('feeds', { schema: FeedState, partition: 'kind', sort: 'feed' })
         .put({ kind: 'feed', feed: 'retired', intervalSeconds: 60, attemptedAt: 0, failures: 0 });
       assert.deepStrictEqual([...(yield* (yield* FeedStore).states).keys()], []);
-      assert.strictEqual((yield* (yield* Refresher).tick).length, 5);
+      assert.strictEqual((yield* (yield* Refresher).tick).length, 6);
     }).pipe(Effect.provide(pipeline())),
   );
 

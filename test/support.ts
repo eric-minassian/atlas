@@ -20,6 +20,19 @@ const json = (body: string, init: { readonly headers?: Record<string, string> } 
 /** Every source answered from the recorded fixtures. */
 export const recorded: Upstream = ({ url }) => {
   switch (url.host) {
+    case 'api.tfl.gov.uk':
+      return json(fixture('tfl-jamcams.json'));
+    case 'webcams.nyctmc.org':
+      return json(fixture('nyctmc-cameras.json'));
+    case 'cwwp2.dot.ca.gov':
+      // District 7 (Los Angeles) recorded; the other districts answer with no cameras.
+      return json(url.pathname.endsWith('cctvStatusD07.json') ? fixture('caltrans-d07.json') : '{"data":[]}');
+    case 'raw.githubusercontent.com':
+      return json(fixture('opentrafficcammap-usa.json'));
+    case 'api.windy.com':
+      return json(fixture('windy-webcams.json'));
+    case 'api.inaturalist.org':
+      return json(fixture('inaturalist-observations.json'));
     case 'opendata.adsb.fi':
       return json(fixture('adsbfi.json'));
     case 'celestrak.org':

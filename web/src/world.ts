@@ -55,7 +55,11 @@ export class World {
     this.config = config;
     this.globe = new Globe(container, config, creditContainer);
     this.available = layers.filter((def) => def.available?.(config) ?? true);
-    for (const def of this.available) this.handles.set(def.id, def.create(this.globe));
+    for (const def of this.available) {
+      const handle = def.create(this.globe);
+      this.handles.set(def.id, handle);
+      if (handle.loaded) this.stops.push(handle.loaded.add(() => this.apply(this.globe.view, true, def.id)));
+    }
     this.stops.push(
       this.globe.viewChanged.add((view) => this.apply(view, false)),
       this.globe.viewSettled.add((view) => this.apply(view, true)),

@@ -1,5 +1,6 @@
 import { Context, Layer } from 'effect';
 import type { FeedId } from '../domain.ts';
+import { makeCameraSource } from './cameras.ts';
 import { makeEarthquakeSource } from './earthquakes.ts';
 import { makeEventSource } from './events.ts';
 import { makeFireSource } from './fires.ts';
@@ -25,6 +26,7 @@ export class Sources extends Context.Service<Sources, { readonly [F in FeedId]: 
       fires: makeFireSource(),
       events: makeEventSource(),
       radar: makeRadarSource(),
+      cameras: makeCameraSource(),
     }),
   );
 }

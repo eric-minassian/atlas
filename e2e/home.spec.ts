@@ -36,12 +36,19 @@ test('search opens from the keyboard', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByTestId('globe').locator('canvas')).toBeVisible();
   await page.keyboard.press('ControlOrMeta+k');
-  await expect(page.getByPlaceholder('Callsign, satellite name or NORAD id, place…')).toBeFocused();
+  await expect(page.getByPlaceholder('Place, address, callsign, satellite…')).toBeFocused();
 });
 
 test('the API describes every feed', async ({ request }) => {
   const res = await request.get('/api/catalog');
   expect(res.ok()).toBe(true);
   const body = (await res.json()) as { feeds: Array<{ id: string }> };
-  expect(body.feeds.map((f) => f.id)).toEqual(['satellites', 'earthquakes', 'fires', 'events', 'radar']);
+  expect(body.feeds.map((f) => f.id)).toEqual([
+    'satellites',
+    'earthquakes',
+    'fires',
+    'events',
+    'radar',
+    'cameras',
+  ]);
 });

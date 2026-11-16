@@ -5,12 +5,15 @@ import { HttpApiBuilder } from 'effect/http-api';
 import type { HttpServerRequest } from 'effect/http/HttpServerRequest';
 import { AircraftNearbyLookup } from './aircraft.ts';
 import { Api } from './api.ts';
+import { CameraRelay } from './cameras.ts';
 import { feeds } from './catalog.ts';
 import { type FeedId, FeedNotReady, feedIds } from './domain.ts';
 import { FeedStore } from './feeds.ts';
 import { HereLookup } from './here.ts';
 import { Sources } from './ingest/index.ts';
 import { Tiles } from './tiles.ts';
+import { WebcamLookup } from './webcams.ts';
+import { WildlifeLookup } from './wildlife.ts';
 
 /** Sets `Cache-Control` on the response the current handler produces. */
 const cacheFor = (value: string) =>
@@ -114,13 +117,40 @@ const LiveHandlers = HttpApiBuilder.group(
   'live',
   Effect.fn(function* (handlers) {
     const aircraft = yield* AircraftNearbyLookup;
-    return handlers.handle('aircraft', ({ query }) =>
-      Effect.gen(function* () {
-        const nearby = yield* aircraft.near(query.lat, query.lon);
-        yield* cacheFor('public, max-age=8, stale-while-revalidate=20');
-        return nearby;
-      }),
-    );
+    const webcams = yield* WebcamLookup;
+    const wildlife = yield* WildlifeLookup;
+    const cameras = yield* CameraRelay;
+    return handlers
+      .handle('aircraft', ({ query }) =>
+        Effect.gen(function* () {
+          const nearby = yield* aircraft.near(query.lat, query.lon);
+          yield* cacheFor('public, max-age=8, stale-while-revalidate=20');
+          return nearby;
+        }),
+      )
+      .handle('webcams', ({ params }) =>
+        Effect.gen(function* () {
+          const area = yield* webcams.area(params.z, params.x, params.y);
+          // Short: Windy's image URLs expire 10 minutes after Windy hands them out.
+          yield* cacheFor('public, max-age=60, stale-while-revalidate=60');
+          return area;
+        }),
+      )
+      .handle('wildlife', ({ params }) =>
+        Effect.gen(function* () {
+          const area = yield* wildlife.area(params.z, params.x, params.y);
+          yield* cacheFor('public, max-age=900, stale-while-revalidate=900');
+          return area;
+        }),
+      )
+      .handle('cameraImage', ({ params }) =>
+        Effect.map(cameras.frame(params.id), (frame) =>
+          HttpServerResponse.uint8Array(frame.bytes, {
+            contentType: frame.contentType,
+            headers: { 'cache-control': 'public, max-age=30' },
+          }),
+        ),
+      );
   }),
 );
 
@@ -134,7 +164,8 @@ const FeedsHandlers = HttpApiBuilder.group(
       .handle('earthquakes', serveFeed(store, 'earthquakes'))
       .handle('fires', serveFeed(store, 'fires'))
       .handle('events', serveFeed(store, 'events'))
-      .handle('radar', serveFeed(store, 'radar'));
+      .handle('radar', serveFeed(store, 'radar'))
+      .handle('cameras', serveFeed(store, 'cameras'));
   }),
 );
 
@@ -145,5 +176,14 @@ const FeedsHandlers = HttpApiBuilder.group(
  */
 export const HttpLive = HttpApiBuilder.layer(Api, { openapiPath: '/api/openapi.json' }).pipe(
   Layer.provide([SystemHandlers, FeedsHandlers, LiveHandlers, TilesHandlers]),
-  Layer.provide([FeedStore.layer, Sources.layer, HereLookup.layer, Tiles.layer, AircraftNearbyLookup.layer]),
+  Layer.provide([
+    FeedStore.layer,
+    Sources.layer,
+    HereLookup.layer,
+    Tiles.layer,
+    AircraftNearbyLookup.layer,
+    WebcamLookup.layer,
+    WildlifeLookup.layer,
+    CameraRelay.layer.pipe(Layer.provide(FeedStore.layer)),
+  ]),
 );

@@ -13,6 +13,7 @@ const fetchers: Fetchers = {
   fires: (api) => api.feeds.fires(),
   events: (api) => api.feeds.events(),
   radar: (api) => api.feeds.radar(),
+  cameras: (api) => api.feeds.cameras(),
 };
 
 export interface FeedView {

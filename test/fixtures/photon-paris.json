@@ -1,0 +1,167 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "osm_type": "R",
+        "osm_id": 71525,
+        "osm_key": "place",
+        "osm_value": "city",
+        "type": "city",
+        "name": "Paris",
+        "state": "Île-de-France",
+        "country": "France",
+        "countrycode": "FR",
+        "extra": {
+          "admin_level": "6"
+        },
+        "extent": [
+          2.224122,
+          48.902156,
+          2.4697602,
+          48.8155755
+        ]
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          2.3483915,
+          48.8534951
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osm_type": "R",
+        "osm_id": 7444,
+        "osm_key": "boundary",
+        "osm_value": "administrative",
+        "type": "district",
+        "name": "Paris",
+        "city": "Paris",
+        "state": "Île-de-France",
+        "country": "France",
+        "countrycode": "FR",
+        "extra": {
+          "admin_level": "8"
+        },
+        "extent": [
+          2.224122,
+          48.902156,
+          2.4697602,
+          48.8155755
+        ]
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          2.320041,
+          48.8588897
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osm_type": "R",
+        "osm_id": 1641193,
+        "osm_key": "boundary",
+        "osm_value": "administrative",
+        "type": "district",
+        "name": "Paris",
+        "city": "Paris",
+        "state": "Île-de-France",
+        "country": "France",
+        "countrycode": "FR",
+        "extra": {
+          "admin_level": "7"
+        },
+        "extent": [
+          2.224122,
+          48.902156,
+          2.4697602,
+          48.8155755
+        ]
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          2.320041,
+          48.8588897
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osm_type": "N",
+        "osm_id": 1821259562,
+        "osm_key": "place",
+        "osm_value": "hamlet",
+        "type": "district",
+        "name": "Paris",
+        "city": "Suchdol nad Lužnicí",
+        "county": "okres Jindřichův Hradec",
+        "state": "South Bohemian Region",
+        "country": "Czechia",
+        "postcode": "378 07",
+        "countrycode": "CZ"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          14.9176808,
+          48.8966883
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osm_type": "N",
+        "osm_id": 1443428681,
+        "osm_key": "place",
+        "osm_value": "hamlet",
+        "type": "district",
+        "name": "Paris",
+        "city": "Brossasco",
+        "county": "Cuneo",
+        "state": "Piedmont",
+        "country": "Italy",
+        "countrycode": "IT"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          7.2795083,
+          44.601427
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osm_type": "N",
+        "osm_id": 7474015215,
+        "osm_key": "place",
+        "osm_value": "hamlet",
+        "type": "district",
+        "name": "Paris",
+        "city": "Norrtälje kommun",
+        "county": "Stockholm County",
+        "country": "Sweden",
+        "postcode": "761 98",
+        "countrycode": "SE"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          18.8036565,
+          59.7623158
+        ]
+      }
+    }
+  ]
+}

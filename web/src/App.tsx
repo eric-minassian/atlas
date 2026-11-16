@@ -6,6 +6,8 @@ import { Inspector, type Selection } from './components/Inspector.tsx';
 import { defaultSettings, type LayerSettings, LayerPanel } from './components/LayerPanel.tsx';
 import { SearchDialog } from './components/SearchDialog.tsx';
 import { loadConfig } from './config.ts';
+import { flyToPlace } from './data/geocode.ts';
+import type { PlaceHit } from './data/places.ts';
 import type { Pick } from './globe/globe.ts';
 import { useCatalog, useNow, usePersistentState } from './hooks.ts';
 import { layerById, layers } from './layers/registry.ts';
@@ -122,7 +124,13 @@ export function App() {
     if (details?.position) {
       world.follow(details.position);
       setFollowing(true);
-    }
+    } else if (details?.extent) world.globe.flyToBounds(details.extent);
+  };
+
+  const goToPlace = (place: PlaceHit) => {
+    if (!world) return;
+    select(undefined);
+    flyToPlace(world.globe, place);
   };
 
   const visibleSources = [
@@ -198,7 +206,13 @@ export function App() {
           </div>
         )}
 
-        <SearchDialog world={world} open={searchOpen} onOpenChange={setSearchOpen} onSelect={goTo} />
+        <SearchDialog
+          world={world}
+          open={searchOpen}
+          onOpenChange={setSearchOpen}
+          onSelect={goTo}
+          onPlace={goToPlace}
+        />
       </div>
     </TooltipProvider>
   );

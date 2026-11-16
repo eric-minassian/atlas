@@ -3,6 +3,7 @@ import type { Bounds } from '../../../src/area.ts';
 import type { Source } from '../../../src/catalog.ts';
 import type { ClientConfig, FeedId } from '../../../src/domain.ts';
 import type { Basemap, Globe } from '../globe/globe.ts';
+import type { Listeners } from '../lib/listeners.ts';
 
 export type Category = 'air' | 'sea' | 'space' | 'hazards' | 'weather' | 'earth' | 'city' | 'street' | 'base';
 
@@ -101,6 +102,11 @@ export interface LayerHandle {
   search?(query: string, limit: number): ReadonlyArray<SearchHit>;
   /** How many of its entities are within `bounds`, for the panel's "In view" list. */
   countIn?(bounds: Bounds): number;
+  /**
+   * Fires when data the layer loads in the background arrives (after the view
+   * settled and was counted), so its "In view" count is taken again.
+   */
+  readonly loaded?: Listeners<void>;
   destroy(): void;
 }
 
