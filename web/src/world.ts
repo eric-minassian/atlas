@@ -45,6 +45,8 @@ export class World {
   readonly available: ReadonlyArray<LayerDef>;
   /** Fires when any layer's state or in-view count changes. */
   readonly statesChanged = new Listeners<void>();
+  /** Bumped on every state change, so React can tell a new snapshot of states from the old. */
+  statesVersion = 0;
   private readonly handles = new Map<string, LayerHandle>();
   private readonly wanted = new Map<string, boolean>();
   private readonly states = new Map<string, LayerState>();
@@ -121,7 +123,10 @@ export class World {
         changed = true;
       }
     }
-    if (changed) this.statesChanged.emit();
+    if (changed) {
+      this.statesVersion++;
+      this.statesChanged.emit();
+    }
   }
 
   details(ref: EntityRef): Details | undefined {

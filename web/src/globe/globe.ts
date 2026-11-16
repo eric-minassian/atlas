@@ -14,6 +14,7 @@ import {
   createGooglePhotorealistic3DTileset,
   createWorldTerrainAsync,
   defined,
+  DirectionalLight,
   EllipsoidTerrainProvider,
   ImageryLayer,
   Ion,
@@ -24,6 +25,7 @@ import {
   type Scene,
   ScreenSpaceEventHandler,
   ScreenSpaceEventType,
+  SunLight,
   Terrain,
   TileMapServiceImageryProvider,
   UrlTemplateImageryProvider,
@@ -91,6 +93,9 @@ const ESRI_FROM_LEVEL = 11;
 /** The NASA reference overlay (borders, coarse labels) gives way to the vector labels below this level. */
 const REFERENCE_UNTIL_LEVEL = 9;
 
+/** Below this camera height, 3D models are lit from the viewer rather than the Sun. */
+const VIEWER_LIGHT_BELOW = 200_000;
+
 /** Picks things layers drew that aren't tagged with a `PickId` (3D tile features). */
 export type Picker = (picked: unknown) => PickId | undefined;
 
@@ -149,7 +154,8 @@ export class Globe {
     if (config.keys.cesiumIon) {
       // No vertex normals: with them Cesium shades terrain by the Sun at every distance, so a city
       // at night is black. Without, day and night show from space and fade to daylight up close.
-      scene.setTerrain(new Terrain(createWorldTerrainAsync({ requestWaterMask: true })));
+      // No water mask either: its animated waves look synthetic over real imagery of the water.
+      scene.setTerrain(new Terrain(createWorldTerrainAsync()));
     }
     const camera = scene.camera;
     const controller = scene.screenSpaceCameraController;
@@ -220,6 +226,21 @@ export class Globe {
     // Start over the viewer's own longitude, guessed from their UTC offset (no permission needed).
     const lon = CesiumMath.clamp(-new Date().getTimezoneOffset() / 4, -180, 180);
     camera.setView({ destination: Cartesian3.fromDegrees(lon, 22, 21_000_000) });
+
+    // 3D buildings and tiles are lit by `scene.light`. The Sun leaves a city at night as black
+    // boxes, so near the ground the light comes from the viewer instead. The globe's own day and
+    // night shading has faded out by then, so this only changes how models read.
+    const sun = new SunLight();
+    const flashlight = new DirectionalLight({ direction: Cartesian3.clone(camera.directionWC) });
+    this.cleanup.push(
+      scene.preRender.addEventListener(() => {
+        const near = camera.positionCartographic.height < VIEWER_LIGHT_BELOW;
+        if (near) {
+          Cartesian3.clone(camera.directionWC, flashlight.direction);
+          scene.light = flashlight;
+        } else if (scene.light !== sun) scene.light = sun;
+      }),
+    );
 
     camera.percentageChanged = 0.02;
     this.cleanup.push(

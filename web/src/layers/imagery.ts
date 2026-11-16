@@ -12,7 +12,12 @@ import {
 import { feeds } from '../../../src/catalog.ts';
 import { feedPoller, type Snapshot } from '../data/feeds.ts';
 import { type Globe, gibs } from '../globe/globe.ts';
+import { extractNames } from './names.ts';
 import type { LayerDef, LayerHandle } from './types.ts';
+import { VectorLabels } from './vectorlabels.ts';
+
+/** Below this camera height, OpenStreetMap names take over from NASA's coarse label overlay. */
+const NAMES_BELOW = 150_000;
 
 /** Retries a failed tile a couple of times before leaving the hole for the next refresh. */
 export const retrying = <P extends ImageryProvider>(provider: P): P => {
@@ -335,11 +340,29 @@ export const referenceLayer: LayerDef = {
   id: 'reference',
   title: 'Borders and labels',
   category: 'base',
-  description: 'Coastlines, country borders and place names, at the scale of countries and regions.',
+  description:
+    'Borders and place names: countries and regions from afar, then cities, neighbourhoods, streets and house numbers as you zoom in.',
   source: nasaGibs,
   defaultVisible: true,
   basemaps: ['satellite'],
   create(globe) {
-    return { setVisible: (visible) => globe.setReference(visible), destroy: () => globe.setReference(false) };
+    // NASA's overlay names countries and regions from afar; closer in, names come from OpenStreetMap
+    // as screen-space labels (cities, then neighbourhoods, streets and house numbers).
+    const names = new VectorLabels(globe, {
+      layer: 'reference',
+      extract: extractNames,
+      pickable: false,
+      maxHeight: NAMES_BELOW,
+    });
+    return {
+      setVisible(visible) {
+        globe.setReference(visible);
+        names.setActive(visible);
+      },
+      destroy() {
+        names.destroy();
+        globe.setReference(false);
+      },
+    };
   },
 };

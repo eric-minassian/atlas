@@ -6,8 +6,8 @@ import { Inspector, type Selection } from './components/Inspector.tsx';
 import { defaultSettings, type LayerSettings, LayerPanel } from './components/LayerPanel.tsx';
 import { SearchDialog } from './components/SearchDialog.tsx';
 import { loadConfig } from './config.ts';
-import type { Pick } from './globe/globe.ts';
-import { useCatalog, useNow, usePersistentState } from './hooks.ts';
+import type { Basemap, Pick } from './globe/globe.ts';
+import { useCatalog, useLayerStates, useNow, usePersistentState } from './hooks.ts';
 import { layerById, layers } from './layers/registry.ts';
 import type { Details, SearchHit } from './layers/types.ts';
 import { World } from './world.ts';
@@ -26,6 +26,10 @@ export function App() {
   const [hover, setHover] = useState<{ title: string; x: number; y: number }>();
   const pointer = useRef({ x: 0, y: 0 });
   const statuses = useCatalog();
+  const [view, setView] = usePersistentState<{ readonly basemap: Basemap }>('atlas:view:v1', {
+    basemap: 'satellite',
+  });
+  useLayerStates(world);
 
   // Map credits (imagery, terrain, 3D tiles) go here; Cesium keeps them current for what's on screen.
   const credits = useRef<HTMLDivElement | null>(null);
@@ -71,6 +75,10 @@ export function App() {
       }
     }
   }, [world, settings]);
+
+  useEffect(() => {
+    void world?.setBasemap(view.basemap);
+  }, [world, view.basemap]);
 
   const select = useCallback(
     (next: Selection | undefined) => {
@@ -125,10 +133,11 @@ export function App() {
     }
   };
 
+  // Credit the sources of what's drawing now; map imagery credits itself (the `credits` element).
   const visibleSources = [
     ...new Set(
-      layers
-        .filter((l) => settings.visible[l.id] ?? l.defaultVisible)
+      (world?.available ?? [])
+        .filter((l) => world?.state(l.id).kind === 'shown')
         .map((l) => layerById.get(l.id)?.source.name ?? ''),
     ),
   ].filter(Boolean);
@@ -161,9 +170,12 @@ export function App() {
             <div className="flex max-h-full min-h-0">
               {panelOpen && (
                 <LayerPanel
+                  world={world}
                   settings={settings}
                   statuses={statuses}
+                  basemap={view.basemap}
                   onChange={setSettings}
+                  onBasemap={(basemap) => setView({ ...view, basemap })}
                   onClose={() => setPanelOpen(false)}
                 />
               )}

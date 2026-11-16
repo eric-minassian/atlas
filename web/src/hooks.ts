@@ -3,6 +3,7 @@ import type { FeedId, FeedStatus } from '../../src/domain.ts';
 import { callApi } from './client.ts';
 import { feedPoller, type FeedView } from './data/feeds.ts';
 import { layerStatus, type LayerStatus } from './data/status.ts';
+import type { LayerState, World } from './world.ts';
 
 /** The current time, re-rendering every `intervalMs`. */
 export function useNow(intervalMs = 1000): number {
@@ -25,6 +26,24 @@ export function useLayerStatus(layer: string): LayerStatus {
   return useSyncExternalStore(
     (listener) => layerStatus.subscribe(listener),
     () => layerStatus.get(layer),
+  );
+}
+
+const OFF: LayerState = { kind: 'off' };
+
+/** A layer's state on the globe: shown (with its in-view count), off, or why it isn't drawing. */
+export function useLayerState(world: World | undefined, layer: string): LayerState {
+  return useSyncExternalStore(
+    (listener) => world?.statesChanged.add(listener) ?? (() => {}),
+    () => world?.state(layer) ?? OFF,
+  );
+}
+
+/** Re-renders whenever any layer's state changes; returns the world for reading them. */
+export function useLayerStates(world: World | undefined): number {
+  return useSyncExternalStore(
+    (listener) => world?.statesChanged.add(listener) ?? (() => {}),
+    () => world?.statesVersion ?? 0,
   );
 }
 
