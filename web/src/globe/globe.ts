@@ -6,7 +6,7 @@ import {
   Cartesian2,
   Cartesian3,
   Cartographic,
-  type Cesium3DTileset,
+  Cesium3DTileset,
   CesiumWidget,
   ClockStep,
   Color,
@@ -121,6 +121,52 @@ const plausible = (height: number | undefined): number | undefined =>
 
 /** Terrain level heights are sampled at without the globe: about 20 m apart, plenty for a marker. */
 const TERRAIN_SAMPLE_LEVEL = 13;
+
+/** Mean Earth radius, and the height of the highest ground a marker can sit on (with margin). */
+const EARTH_RADIUS = 6_371_000;
+const HIGHEST_GROUND = 9_000;
+
+/** How far the camera sees before the Earth's curve hides the ground (and ground as high as Everest). */
+export const horizonDistance = (height: number): number => {
+  const h = Math.max(0, height);
+  return (
+    Math.sqrt((EARTH_RADIUS + h) ** 2 - EARTH_RADIUS ** 2) +
+    Math.sqrt((EARTH_RADIUS + HIGHEST_GROUND) ** 2 - EARTH_RADIUS ** 2)
+  );
+};
+
+/** The horizon has to move this much (as a share) before every marker is updated. */
+const HORIZON_SLACK = 0.25;
+/** Markers that layers add later get the current setting on this cadence. */
+const MARKER_SWEEP_MS = 2_000;
+
+interface Depthable {
+  disableDepthTestDistance: number;
+}
+interface Collection {
+  readonly length: number;
+  get(index: number): unknown;
+}
+
+const isCollection = (value: unknown): value is Collection =>
+  typeof value === 'object' &&
+  value !== null &&
+  typeof (value as Collection).get === 'function' &&
+  typeof (value as Collection).length === 'number';
+
+/**
+ * Sets `distance` as the depth-test distance of every point, billboard and
+ * label in the scene, walking nested collections. Cesium compares before
+ * marking anything dirty, so a sweep where nothing changed costs a loop.
+ */
+const setDepthTestDistance = (collection: Collection, distance: number): void => {
+  for (let i = 0; i < collection.length; i++) {
+    const item = collection.get(i);
+    if (isCollection(item) && !(item instanceof Cesium3DTileset)) setDepthTestDistance(item, distance);
+    else if (typeof item === 'object' && item !== null && 'disableDepthTestDistance' in item)
+      (item as Depthable).disableDepthTestDistance = distance;
+  }
+};
 
 /** Below this camera height, 3D models are lit from the viewer rather than the Sun. */
 const VIEWER_LIGHT_BELOW = 200_000;
@@ -272,6 +318,23 @@ export class Globe {
       }),
     );
 
+    // Occlusion. Cesium's default skips depth-testing points against terrain (so the ground they
+    // sit on doesn't clip them) and hides what's behind the Earth with a plane at the horizon, which
+    // fails near the ground over real terrain: satellites and far-off markers showed through the
+    // Earth from street level. Instead, terrain occludes, and everything nearer than the horizon
+    // skips the test: nothing nearer than the horizon can be behind the Earth.
+    globe.depthTestAgainstTerrain = true;
+    let horizon = 0;
+    const keepHorizon = () => {
+      const reach = horizonDistance(camera.positionCartographic.height);
+      // Rewrites every marker's depth setting, so only when the horizon moved appreciably.
+      if (Math.abs(reach - horizon) / Math.max(horizon, 1) < HORIZON_SLACK) return;
+      horizon = reach;
+      setDepthTestDistance(scene.primitives, reach);
+    };
+    const horizonTimer = setInterval(() => setDepthTestDistance(scene.primitives, horizon), MARKER_SWEEP_MS);
+    this.cleanup.push(() => clearInterval(horizonTimer));
+
     camera.percentageChanged = 0.02;
     this.cleanup.push(
       camera.changed.addEventListener(() => {
@@ -280,11 +343,13 @@ export class Globe {
       }),
       camera.moveEnd.addEventListener(() => {
         this.currentView = this.measureView();
+        keepHorizon();
         this.viewSettled.emit(this.currentView);
       }),
       scene.preRender.addEventListener(() => this.updateFollow()),
     );
     this.currentView = this.measureView();
+    keepHorizon();
 
     this.handler = new ScreenSpaceEventHandler(scene.canvas);
 
