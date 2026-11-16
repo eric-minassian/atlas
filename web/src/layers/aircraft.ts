@@ -17,9 +17,9 @@ import { callApi } from '../client.ts';
 import { layerStatus } from '../data/status.ts';
 import type { PickId } from '../globe/globe.ts';
 import { formatAge, formatBearing, formatInt, formatLatLon, metersToFeet, msToKnots } from '../lib/format.ts';
+import { advance } from '../lib/motion.ts';
 import type { Details, LayerDef, LayerHandle, SearchHit } from './types.ts';
 
-const EARTH_RADIUS = 6_371_000;
 const NM = 1852;
 const POLL_MS = 10_000;
 /** Beyond this, positions stay where they were last reported rather than being extrapolated. */
@@ -50,18 +50,6 @@ const planeIcon = `data:image/svg+xml,${encodeURIComponent(
     '<path d="M16 2C17.3 2 18 3.2 18 4.6V12l11 6.5V21l-11-3.4V25l3.5 2.6v2L16 28.2l-5.5 1.4v-2L14 25v-7.4L3 21v-2.5L14 12V4.6C14 3.2 14.7 2 16 2Z" ' +
     'fill="#fff" stroke="rgba(0,0,0,0.65)" stroke-width="1.5"/></svg>',
 )}`;
-
-/** Position after flying `seconds` along `track` at `speed`, on a sphere (good enough for minutes). */
-const advance = (lat: number, lon: number, track: number, speed: number, seconds: number) => {
-  const d = (speed * seconds) / EARTH_RADIUS;
-  const t = CesiumMath.toRadians(track);
-  const φ = CesiumMath.toRadians(lat);
-  const dλ = (d * Math.sin(t)) / Math.max(0.01, Math.cos(φ));
-  return {
-    lat: lat + CesiumMath.toDegrees(d * Math.cos(t)),
-    lon: CesiumMath.toDegrees(CesiumMath.negativePiToPi(CesiumMath.toRadians(lon) + dλ)),
-  };
-};
 
 /** A circle of `radius` meters around a point, as lon/lat pairs. */
 const circle = (lat: number, lon: number, radius: number): number[] => {

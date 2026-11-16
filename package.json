@@ -17,7 +17,11 @@
   },
   "dependencies": {
     "@ericminassian/platform": "^0.3.0",
-    "effect": "^4.1.4"
+    "csv-parse": "7.0.3",
+    "effect": "^4.1.4",
+    "gtfs-realtime-bindings": "2.2.0",
+    "h5wasm": "0.10.3",
+    "unzipit": "2.1.1"
   },
   "devDependencies": {
     "@effect/tsgo": "^0.69.0",

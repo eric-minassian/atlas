@@ -9,14 +9,23 @@ import {
 import { Context, Effect, Layer, Schema } from 'effect';
 import { FetchHttpClient } from 'effect/http';
 import { HttpApiClient } from 'effect/http-api';
+import GtfsRealtimeBindings from 'gtfs-realtime-bindings';
 import { afterEach, beforeEach } from 'vitest';
+import { AIRPORT_ZOOM } from '../src/airports.ts';
 import { Api } from '../src/api.ts';
+import { tileAt } from '../src/area.ts';
+import { BIKES_ZOOM } from '../src/bikes.ts';
 import type { FeedId } from '../src/domain.ts';
 import { FeedStore } from '../src/feeds.ts';
 import { HttpLive } from '../src/http.ts';
+import { parseAirports } from '../src/ingest/airports.ts';
 import { FeatureCollection, parseQuakes } from '../src/ingest/earthquakes.ts';
 import { type Source, Sources } from '../src/ingest/index.ts';
-import { fakeHttp, fixture, recorded, type Upstream, updatedData } from './support.ts';
+import { makeShipSource } from '../src/ingest/ships.ts';
+import { IngestError } from '../src/ingest/source.ts';
+import { parseTransitFeeds } from '../src/ingest/transit-feeds.ts';
+import { TRANSIT_ZOOM } from '../src/transit.ts';
+import { fakeHttp, fixture, fixtureBytes, recorded, type Upstream, updatedData } from './support.ts';
 
 const BASE = 'http://atlas.localhost';
 
@@ -99,6 +108,25 @@ const quakes = parseQuakes(
   Schema.decodeSync(Schema.fromJsonString(FeatureCollection))(fixture('usgs.geojson')),
 );
 
+const { transit_realtime } = GtfsRealtimeBindings;
+/** A GTFS-realtime feed with every vehicle's position time set to now. */
+const restamped = (bytes: Uint8Array): Uint8Array<ArrayBuffer> => {
+  const message = transit_realtime.FeedMessage.decode(bytes);
+  const now = Math.floor(Date.now() / 1000);
+  message.header.timestamp = now;
+  for (const entity of message.entity) if (entity.vehicle) entity.vehicle.timestamp = now;
+  return new Uint8Array(transit_realtime.FeedMessage.encode(message).finish());
+};
+
+const parsedOrThrow = <A>(parsed: A | IngestError): A => {
+  if (parsed instanceof IngestError) throw parsed;
+  return parsed;
+};
+const airports = parsedOrThrow(
+  parseAirports(fixture('ourairports-airports.csv'), fixture('ourairports-runways.csv')),
+);
+const transitFeeds = parsedOrThrow(parseTransitFeeds(fixture('mobilitydatabase.csv')));
+
 describe('api', () => {
   let telemetry: ReturnType<typeof captureTelemetry>;
   beforeEach(() => {
@@ -171,6 +199,11 @@ describe('api', () => {
           ['volcanoes', null, 86400],
           ['aurora', null, 300],
           ['rivers', null, 900],
+          ['ships', null, 300],
+          ['airports', null, 86400],
+          ['transitFeeds', null, 86400],
+          ['bikeSystems', null, 900],
+          ['lightning', null, 60],
         ],
       );
 
@@ -301,6 +334,118 @@ describe('api', () => {
       const { client } = yield* setup(() => new Response('down', { status: 500 }));
       const error = yield* Effect.flip(client.here({ query: { lat: 0, lon: 0 } }));
       assert.strictEqual(error._tag, 'UpstreamUnavailable');
+    }),
+  );
+
+  it.effect('serves ships, read from Digitraffic without an aisstream key', () =>
+    Effect.gen(function* () {
+      const { client, store } = yield* setup();
+      const result = yield* makeShipSource()
+        .read({}, Effect.succeedNone)
+        .pipe(Effect.provide(Layer.merge(fakeHttp().layer, Platform.layerMemory())));
+      if (result._tag !== 'Updated') throw new Error('expected an update');
+      yield* store.begin('ships', 300);
+      yield* store.publish('ships', result.data, result.count, {});
+      const snapshot = yield* client.feeds.ships();
+      assert.include([...snapshot.data.name], 'SILVA');
+    }),
+  );
+
+  it.effect('serves large and medium airports globally, and every airport by tile with runways', () =>
+    Effect.gen(function* () {
+      const { client, store, get } = yield* setup();
+      assert.strictEqual((yield* Effect.flip(client.feeds.airports()))._tag, 'FeedNotReady');
+      yield* store.begin('airports', 86400);
+      const { version } = yield* store.publish(
+        'airports',
+        airports.data,
+        airports.data.airports.ident.length,
+        {},
+      );
+
+      const global = yield* client.feeds.airports();
+      assert.strictEqual(global.version, version);
+      assert.deepStrictEqual(global.data.airports.ident, ['KBOS', 'EGLL', 'KBED']);
+      assert.strictEqual(global.count, 3);
+      assert.deepStrictEqual(global.data.runways.airport, []);
+      // Links come with the tile, like runways.
+      assert.deepStrictEqual(global.data.airports.wikipedia, ['', '', '']);
+      const response = yield* get('/api/feeds/airports');
+      assert.strictEqual(response.headers.get('etag'), `"${version}"`);
+      assert.strictEqual(
+        response.headers.get('cache-control'),
+        'public, max-age=300, stale-while-revalidate=900',
+      );
+      assert.strictEqual(
+        (yield* get('/api/feeds/airports', { 'if-none-match': `"${version}"` })).status,
+        304,
+      );
+
+      const boston = tileAt(AIRPORT_ZOOM, -71.0079, 42.36197);
+      const tile = yield* client.live.airports({ params: { z: AIRPORT_ZOOM, ...boston } });
+      assert.strictEqual(tile.version, version);
+      assert.includeMembers([...tile.data.airports.ident], ['KBOS', 'KBED', '04MA', '01MA']);
+      assert.notInclude([...tile.data.airports.ident], 'EGLL');
+      const bos = tile.data.airports.ident.indexOf('KBOS');
+      assert.strictEqual(tile.data.airports.website[bos], 'http://www.massport.com/logan/');
+      assert.strictEqual(tile.data.runways.airport.filter((a) => a === bos).length, 6);
+      assert.strictEqual(
+        (yield* get(`/api/live/airports/8/${boston.x}/${boston.y}`)).headers.get('cache-control'),
+        'public, max-age=3600, stale-while-revalidate=86400',
+      );
+      assert.strictEqual((yield* get(`/api/live/airports/9/${boston.x}/${boston.y}`)).status, 404);
+      assert.strictEqual((yield* get('/api/live/airports/8/256/0')).status, 404);
+    }),
+  );
+
+  it.effect('serves transit vehicles by tile once the feed catalog is in', () =>
+    Effect.gen(function* () {
+      // The API runs on the real clock: the recorded vehicles, re-stamped as just reported.
+      const { client, store, get } = yield* setup((call) =>
+        call.url.host === 'cdn.mbta.com'
+          ? new Response(restamped(fixtureBytes('mbta-vehicles.pb')))
+          : openMeteo(call),
+      );
+      const boston = tileAt(TRANSIT_ZOOM, -71.1516, 42.336);
+      const before = yield* Effect.flip(client.live.transit({ params: { z: TRANSIT_ZOOM, ...boston } }));
+      assert.strictEqual(before._tag, 'FeedNotReady');
+      yield* store.begin('transitFeeds', 86400);
+      yield* store.publish('transitFeeds', transitFeeds.data, transitFeeds.data.id.length, {});
+      const answer = yield* client.live.transit({ params: { z: TRANSIT_ZOOM, ...boston } });
+      assert.deepStrictEqual(
+        answer.feeds.map((f) => f.id),
+        ['mdb-1602'],
+      );
+      assert.isAbove(answer.data.id.length, 0);
+      assert.strictEqual(
+        (yield* get(`/api/live/transit/10/${boston.x}/${boston.y}`)).headers.get('cache-control'),
+        'public, max-age=15, stale-while-revalidate=30',
+      );
+      assert.strictEqual((yield* get(`/api/live/transit/12/${boston.x}/${boston.y}`)).status, 404);
+      assert.deepStrictEqual(errors(), []);
+    }),
+  );
+
+  it.effect('serves bike-share stations by tile', () =>
+    Effect.gen(function* () {
+      const { client, store, get } = yield* setup();
+      const paris = tileAt(BIKES_ZOOM, 2.3488, 48.8534);
+      assert.strictEqual((yield* get(`/api/live/bikes/11/${paris.x}/${paris.y}`)).status, 404);
+      const systems = yield* Sources.pipe(
+        Effect.flatMap((sources) => sources.bikeSystems.read({}, Effect.succeedNone)),
+        Effect.provide(
+          Sources.layer.pipe(Layer.provideMerge(Layer.mergeAll(fakeHttp().layer, Platform.layerMemory()))),
+        ),
+      );
+      if (systems._tag !== 'Updated') throw new Error('expected an update');
+      yield* store.begin('bikeSystems', 900);
+      yield* store.publish('bikeSystems', systems.data, systems.count, {});
+      const answer = yield* client.live.bikes({ params: { z: BIKES_ZOOM, ...paris } });
+      assert.include([...answer.data.name], 'Saint-Sulpice');
+      assert.strictEqual(
+        (yield* get(`/api/live/bikes/11/${paris.x}/${paris.y}`)).headers.get('cache-control'),
+        'public, max-age=60, stale-while-revalidate=120',
+      );
     }),
   );
 

@@ -82,5 +82,10 @@ test('the API describes every feed', async ({ request }) => {
     'volcanoes',
     'aurora',
     'rivers',
+    'ships',
+    'airports',
+    'transitFeeds',
+    'bikeSystems',
+    'lightning',
   ]);
 });

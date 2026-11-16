@@ -6,11 +6,16 @@
  */
 import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from 'effect/http-api';
+import { TileParams } from './area.ts';
 import {
   AircraftNearby,
   AirQualitySnapshot,
   AuroraSnapshot,
   BuoySnapshot,
+  AirportSnapshot,
+  AirportsInTile,
+  BikeStations,
+  BikeSystemSnapshot,
   Catalog,
   ClientConfig,
   DisasterSnapshot,
@@ -21,13 +26,17 @@ import {
   FireSnapshot,
   Here,
   Latitude,
+  LightningSnapshot,
   Longitude,
   MetarSnapshot,
   RadarSnapshot,
   RiverSnapshot,
   SatelliteSnapshot,
+  ShipSnapshot,
   TileOutOfRange,
   TsunamiSnapshot,
+  TransitFeedSnapshot,
+  TransitVehicles,
   UpstreamUnavailable,
   VolcanoSnapshot,
   WeatherAlertSnapshot,
@@ -82,6 +91,18 @@ export class FeedsApi extends HttpApiGroup.make('feeds')
     HttpApiEndpoint.get('volcanoes', '/volcanoes', { success: VolcanoSnapshot, error: FeedNotReady }),
     HttpApiEndpoint.get('aurora', '/aurora', { success: AuroraSnapshot, error: FeedNotReady }),
     HttpApiEndpoint.get('rivers', '/rivers', { success: RiverSnapshot, error: FeedNotReady }),
+    HttpApiEndpoint.get('ships', '/ships', { success: ShipSnapshot, error: FeedNotReady }),
+    /**
+     * Large and medium airports worldwide, without runways or links: the rest
+     * of the snapshot comes by tile (`/api/live/airports`), for the area in view.
+     */
+    HttpApiEndpoint.get('airports', '/airports', { success: AirportSnapshot, error: FeedNotReady }),
+    HttpApiEndpoint.get('transitFeeds', '/transit-feeds', {
+      success: TransitFeedSnapshot,
+      error: FeedNotReady,
+    }),
+    HttpApiEndpoint.get('bikeSystems', '/bike-systems', { success: BikeSystemSnapshot, error: FeedNotReady }),
+    HttpApiEndpoint.get('lightning', '/lightning', { success: LightningSnapshot, error: FeedNotReady }),
   )
   .prefix('/feeds') {}
 
@@ -96,6 +117,24 @@ export class LiveApi extends HttpApiGroup.make('live')
       query: { lat: LatitudeParam, lon: LongitudeParam },
       success: AircraftNearby,
       error: UpstreamUnavailable,
+    }),
+    /** Every open airport in a zoom-8 tile, with runways and full details. */
+    HttpApiEndpoint.get('airports', '/airports/:z/:x/:y', {
+      params: TileParams,
+      success: AirportsInTile,
+      error: [FeedNotReady, TileOutOfRange],
+    }),
+    /** Transit vehicles in a zoom-10 tile, from every keyless GTFS-realtime feed covering it. */
+    HttpApiEndpoint.get('transit', '/transit/:z/:x/:y', {
+      params: TileParams,
+      success: TransitVehicles,
+      error: [FeedNotReady, TileOutOfRange],
+    }),
+    /** Bike-share stations in a zoom-11 tile, with bikes and docks available now. */
+    HttpApiEndpoint.get('bikes', '/bikes/:z/:x/:y', {
+      params: TileParams,
+      success: BikeStations,
+      error: [FeedNotReady, TileOutOfRange],
     }),
   )
   .prefix('/live') {}

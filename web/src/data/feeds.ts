@@ -23,6 +23,11 @@ const fetchers: Fetchers = {
   volcanoes: (api) => api.feeds.volcanoes(),
   aurora: (api) => api.feeds.aurora(),
   rivers: (api) => api.feeds.rivers(),
+  ships: (api) => api.feeds.ships(),
+  airports: (api) => api.feeds.airports(),
+  transitFeeds: (api) => api.feeds.transitFeeds(),
+  bikeSystems: (api) => api.feeds.bikeSystems(),
+  lightning: (api) => api.feeds.lightning(),
 };
 
 export interface FeedView {
