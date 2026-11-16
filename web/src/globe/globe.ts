@@ -134,6 +134,8 @@ export class Globe {
   private photoreal: Cesium3DTileset | undefined;
   private photorealLoading: Promise<Cesium3DTileset | undefined> | undefined;
   private readonly pickers = new Set<Picker>();
+  /** Data imagery layers and their twins on the Photorealistic 3D tiles, once those exist. */
+  private readonly draped = new Map<ImageryLayer, ImageryLayer | undefined>();
   private isolated = false;
   private readonly handler: ScreenSpaceEventHandler;
   private following: (() => Cartesian3 | undefined) | undefined;
@@ -271,6 +273,17 @@ export class Globe {
         this.viewSettled.emit(this.currentView);
       }),
       scene.preRender.addEventListener(() => this.updateFollow()),
+      // Twins follow their layer's opacity and visibility (layers fade with height, sliders move).
+      scene.preRender.addEventListener(() => {
+        for (const [layer, twin] of this.draped) {
+          if (!twin) {
+            if (this.photoreal) this.drape(layer, this.photoreal);
+            continue;
+          }
+          twin.alpha = layer.alpha;
+          twin.show = layer.show;
+        }
+      }),
     );
     this.currentView = this.measureView();
 
@@ -359,6 +372,7 @@ export class Globe {
     )
       .then((tileset) => {
         this.photoreal = this.scene.primitives.add(tileset);
+        for (const layer of this.draped.keys()) this.drape(layer, tileset);
         return tileset;
       })
       .catch((error: unknown) => {
@@ -369,15 +383,35 @@ export class Globe {
     return this.photorealLoading;
   }
 
-  /** Adds `layer` to the imagery stack, above the base map and below the reference overlay. */
-  addImagery(layer: ImageryLayer): void {
+  /**
+   * Adds `layer` to the imagery stack, above the base map and below the
+   * reference overlay. `data` layers (weather, coverage: things drawn on a
+   * map, not a map) are also draped over the Photorealistic 3D tiles, where
+   * Google's terms allow third-party data; map imagery isn't.
+   */
+  addImagery(layer: ImageryLayer, options: { readonly data?: boolean } = {}): void {
     const layers = this.scene.globe.imageryLayers;
     const firstReference = this.reference.map((r) => layers.indexOf(r)).filter((i) => i >= 0);
     layers.add(layer, firstReference.length > 0 ? Math.min(...firstReference) : undefined);
+    if (options.data) {
+      this.draped.set(layer, undefined);
+      if (this.photoreal) this.drape(layer, this.photoreal);
+    }
   }
 
   removeImagery(layer: ImageryLayer): void {
+    const twin = this.draped.get(layer);
+    if (twin && this.photoreal) this.photoreal.imageryLayers.remove(twin, true);
+    this.draped.delete(layer);
     this.scene.globe.imageryLayers.remove(layer, true);
+  }
+
+  /** A twin of a data layer on the 3D tiles: an imagery layer belongs to one collection only. */
+  private drape(layer: ImageryLayer, tileset: Cesium3DTileset) {
+    if (this.draped.get(layer) || !layer.ready) return;
+    const twin = new ImageryLayer(layer.imageryProvider, { alpha: layer.alpha, show: layer.show });
+    tileset.imageryLayers.add(twin);
+    this.draped.set(layer, twin);
   }
 
   setReference(visible: boolean): void {

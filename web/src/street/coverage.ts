@@ -161,7 +161,7 @@ export const streetLevelLayer: LayerDef = {
       const sources = all.filter((s) => shown.has(s.id));
       if (!visible || sources.length === 0) return;
       layer = new ImageryLayer(new CoverageProvider(sources));
-      globe.addImagery(layer);
+      globe.addImagery(layer, { data: true });
     };
     return {
       setVisible(next) {

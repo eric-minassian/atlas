@@ -54,7 +54,13 @@ export const fadeFactor = (fade: Fade | undefined, height: number): number => {
 const imageryHandle = (
   globe: Globe,
   makeProvider: () => ImageryProvider,
-  options: { readonly opacity: number; readonly refreshMs?: number; readonly fade?: Fade },
+  options: {
+    readonly opacity: number;
+    readonly refreshMs?: number;
+    readonly fade?: Fade;
+    /** Data on a map rather than a map itself: also drawn over Photorealistic 3D. */
+    readonly data?: boolean;
+  },
 ): LayerHandle => {
   let layer: ImageryLayer | undefined;
   let opacity = options.opacity;
@@ -68,7 +74,7 @@ const imageryHandle = (
 
   const mount = () => {
     const next = new ImageryLayer(retrying(makeProvider()), { alpha: alpha() });
-    globe.addImagery(next);
+    globe.addImagery(next, { data: options.data ?? false });
     const previous = layer;
     layer = next;
     // Let the new frame's tiles arrive before the old ones go, so it doesn't flash.
@@ -185,7 +191,7 @@ export const cloudLayer: LayerDef = {
           maximumLevel: 5,
           credit: new Credit('NOAA nowCOAST'),
         }),
-      { opacity: 0.85, refreshMs: 30 * 60_000, fade: { from: 600_000, to: 50_000, floor: 0.15 } },
+      { opacity: 0.85, refreshMs: 30 * 60_000, fade: { from: 600_000, to: 50_000, floor: 0.15 }, data: true },
     );
   },
 };
@@ -225,7 +231,7 @@ export const radarLayer: LayerDef = {
         ),
         { alpha: alpha() },
       );
-      globe.addImagery(next);
+      globe.addImagery(next, { data: true });
       const previous = layer;
       layer = next;
       if (previous) setTimeout(() => globe.removeImagery(previous), 4000);
@@ -279,6 +285,7 @@ export const precipitationLayer: LayerDef = {
       opacity: 0.8,
       refreshMs: 30 * 60_000,
       fade: { from: 300_000, to: 30_000, floor: 0.3 },
+      data: true,
     });
   },
 };
@@ -295,7 +302,7 @@ export const seaTemperatureLayer: LayerDef = {
     return imageryHandle(
       globe,
       () => gibs('GHRSST_L4_MUR_Sea_Surface_Temperature', { level: 7, format: 'png' }),
-      { opacity: 0.85 },
+      { opacity: 0.85, data: true },
     );
   },
 };
