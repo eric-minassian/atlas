@@ -2,6 +2,8 @@ import { assert, describe, it } from '@effect/vitest';
 import { Db, Platform, Storage } from '@ericminassian/platform';
 import { Effect, Layer, Option } from 'effect';
 import { TestClock } from 'effect/testing';
+import { snapshotKey } from '../src/catalog.ts';
+import type { FeedId } from '../src/domain.ts';
 import { FeedState, FeedStore } from '../src/feeds.ts';
 import { Sources } from '../src/ingest/index.ts';
 import { isDue, Refresher } from '../src/refresh.ts';
@@ -14,7 +16,7 @@ const pipeline = (upstream: Upstream = recorded) =>
     Layer.provideMerge(Layer.mergeAll(Platform.layerMemory(), fakeHttp(upstream).layer)),
   );
 
-const state = (feed: 'earthquakes' | 'satellites') =>
+const state = (feed: FeedId) =>
   Effect.flatMap(FeedStore, (store) => Effect.map(store.states, (states) => states.get(feed)));
 
 describe('refresh', () => {
@@ -40,7 +42,6 @@ describe('refresh', () => {
         'volcanoes',
         'aurora',
         'rivers',
-        'ships',
         'airports',
         'transitFeeds',
         'bikeSystems',
@@ -69,7 +70,6 @@ describe('refresh', () => {
         'tsunamis',
         'weatherAlerts',
         'aurora',
-        'ships',
         'lightning',
       ]);
     }).pipe(Effect.provide(pipeline())),
@@ -82,7 +82,7 @@ describe('refresh', () => {
         .collection('feeds', { schema: FeedState, partition: 'kind', sort: 'feed' })
         .put({ kind: 'feed', feed: 'retired', intervalSeconds: 60, attemptedAt: 0, failures: 0 });
       assert.deepStrictEqual([...(yield* (yield* FeedStore).states).keys()], []);
-      assert.strictEqual((yield* (yield* Refresher).tick).length, 21);
+      assert.strictEqual((yield* (yield* Refresher).tick).length, 20);
     }).pipe(Effect.provide(pipeline())),
   );
 
@@ -90,7 +90,7 @@ describe('refresh', () => {
     Effect.gen(function* () {
       const refresher = yield* Refresher;
       const store = yield* FeedStore;
-      const snapshots = (yield* Storage).store('snapshots');
+      const files = (yield* Storage).store('feeds');
 
       for (let i = 0; i < 3; i++) {
         yield* refresher.refresh('earthquakes');
@@ -99,7 +99,7 @@ describe('refresh', () => {
       const current = yield* state('earthquakes');
       assert.strictEqual(current?.count, 3);
       assert.isUndefined(current?.error);
-      const stored = yield* snapshots.list('earthquakes/');
+      const stored = yield* files.list('earthquakes/');
       assert.deepStrictEqual(
         stored.objects.map((o) => o.key).toSorted(),
         [`earthquakes/${current?.previousVersion}.json`, `earthquakes/${current?.version}.json`].toSorted(),
@@ -110,6 +110,69 @@ describe('refresh', () => {
       const body = JSON.parse(snapshot.body) as { feed: string; count: number; data: { events: unknown[] } };
       assert.strictEqual(body.feed, 'earthquakes');
       assert.strictEqual(body.data.events.length, 3);
+    }).pipe(Effect.provide(pipeline())),
+  );
+
+  it.effect('publishes the view browsers read beside the snapshot, and drops both together', () =>
+    Effect.gen(function* () {
+      const refresher = yield* Refresher;
+      const files = (yield* Storage).store('feeds');
+      for (let i = 0; i < 3; i++) {
+        yield* refresher.refresh('airports');
+        yield* TestClock.adjust('1 day');
+      }
+      const current = yield* state('airports');
+      const keys = (yield* files.list('airports/')).objects.map((o) => o.key).toSorted();
+      assert.deepStrictEqual(
+        keys,
+        [current?.previousVersion, current?.version]
+          .flatMap((v) => [
+            snapshotKey('airports', v as string),
+            snapshotKey('airports', v as string, 'major'),
+          ])
+          .toSorted(),
+      );
+      const view = JSON.parse(
+        Option.getOrThrow(yield* files.getText(snapshotKey('airports', current?.version as string, 'major'))),
+      ) as { version: string; count: number; data: { airports: { ident: string[] } } };
+      assert.strictEqual(view.version, current?.version);
+      assert.deepStrictEqual(view.data.airports.ident, ['KBOS', 'EGLL', 'KBED']);
+      assert.strictEqual(view.count, 3);
+    }).pipe(Effect.provide(pipeline())),
+  );
+
+  it.effect('refreshes a feed last published to the private store, and deletes its files there', () =>
+    Effect.gen(function* () {
+      const db = yield* Db;
+      const legacy = (yield* Storage).store('snapshots');
+      yield* legacy.put('earthquakes/old1.json', '{}');
+      yield* legacy.put('earthquakes/old0.json', '{}');
+      yield* db.collection('feeds', { schema: FeedState, partition: 'kind', sort: 'feed' }).put({
+        kind: 'feed',
+        feed: 'earthquakes',
+        intervalSeconds: 60,
+        attemptedAt: 0,
+        failures: 0,
+        version: 'old1',
+        previousVersion: 'old0',
+        fetchedAt: 0,
+        etag: '"stale"',
+      });
+      const store = yield* FeedStore;
+      // Browsers can't read it: it reads as never refreshed, so it's not offered, and it's due now.
+      assert.isFalse((yield* store.states).has('earthquakes'));
+      assert.include(yield* (yield* Refresher).tick, 'earthquakes');
+      // Its validators named a snapshot browsers can't read: the source is asked for everything.
+      assert.deepStrictEqual(yield* store.begin('earthquakes', 60), {
+        etag: undefined,
+        lastModified: undefined,
+      });
+      assert.deepStrictEqual((yield* legacy.list('earthquakes/')).objects, []);
+      yield* (yield* Refresher).refresh('earthquakes');
+      const after = yield* state('earthquakes');
+      assert.isTrue(after?.public);
+      assert.isUndefined(after?.previousVersion);
+      assert.isTrue(Option.isSome(yield* store.read('earthquakes')));
     }).pipe(Effect.provide(pipeline())),
   );
 

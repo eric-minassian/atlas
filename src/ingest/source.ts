@@ -37,8 +37,9 @@ export class IngestError extends Schema.TaggedError<IngestError, { readonly bran
 export interface Source<F extends FeedId> {
   /**
    * Reads the source. `previous` loads the payload currently published, for
-   * sources that build on it (a stream sampled for a minute only sees part of
-   * the world); it costs a storage read and a decode, so only those run it.
+   * sources that build on it (cameras and tsunami bulletins from an upstream
+   * that failed are carried over); it costs a storage read and a decode, so
+   * only those run it.
    */
   readonly read: (
     validators: Validators,

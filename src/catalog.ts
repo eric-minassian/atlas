@@ -1,6 +1,7 @@
 /**
  * What each feed is and where it comes from. Shared by the worker (refresh
- * intervals) and the web app (layer names and attribution).
+ * intervals), the ships service and the web app (layer names, attribution, and
+ * where snapshots are).
  */
 import type { FeedId } from './domain.ts';
 
@@ -13,8 +14,13 @@ export interface Source {
 export interface FeedInfo {
   readonly title: string;
   readonly source: Source;
-  /** How often the worker refreshes it. */
+  /** How often a new snapshot can appear: the worker's refresh interval, or a service's publish interval. */
   readonly intervalSeconds: number;
+  /**
+   * The cut of each snapshot browsers read instead of the whole one, published
+   * beside it (src/views.ts). The whole snapshot stays for server-side lookups.
+   */
+  readonly browserView?: 'major';
 }
 
 export const feeds: { readonly [F in FeedId]: FeedInfo } = {
@@ -137,12 +143,15 @@ export const feeds: { readonly [F in FeedId]: FeedInfo } = {
       url: 'https://aisstream.io',
       license: 'aisstream.io terms; Fintraffic / digitraffic.fi, CC BY 4.0',
     },
-    intervalSeconds: 5 * 60,
+    // Streamed: the `ships` service publishes what it heard each minute.
+    intervalSeconds: 60,
   },
   airports: {
     title: 'Airports',
     source: { name: 'OurAirports', url: 'https://ourairports.com', license: 'Public domain' },
     intervalSeconds: 24 * 60 * 60,
+    // Every open airport with its runways is ~12 MB; the globe draws the large and medium ones.
+    browserView: 'major',
   },
   transitFeeds: {
     title: 'Transit feed catalog',
@@ -183,6 +192,14 @@ export const feeds: { readonly [F in FeedId]: FeedInfo } = {
     intervalSeconds: 60 * 60,
   },
 };
+
+/**
+ * Where a snapshot is in the public `feeds` store: `earthquakes/<version>.json`,
+ * or `airports/<version>.major.json` for a view. A version is never reused, so
+ * these files never change and are cached for a year.
+ */
+export const snapshotKey = (feed: FeedId, version: string, view?: string): string =>
+  `${feed}/${version}${view ? `.${view}` : ''}.json`;
 
 /**
  * The Web Mercator zoom each area lookup is served at (`/api/live/<source>/:z/:x/:y`):

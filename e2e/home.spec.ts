@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test';
+import { feeds, snapshotKey } from '../src/catalog.ts';
+import type { FeedId } from '../src/domain.ts';
 
 // CI runs this suite against previews and, after each deploy, production.
 // Tests only read. A fresh stage may not have every feed's first snapshot yet,
@@ -60,6 +62,24 @@ test('search opens from the keyboard', async ({ page }) => {
   await expect(page.getByTestId('globe').locator('canvas')).toBeVisible();
   await page.keyboard.press('ControlOrMeta+k');
   await expect(page.getByPlaceholder('Place, address, callsign, satellite…')).toBeFocused();
+});
+
+test('snapshots come from the edge under keys that are cached for good', async ({ request }) => {
+  const catalog = (await (await request.get('/api/catalog')).json()) as {
+    feeds: Array<{ id: FeedId; version: string | null }>;
+  };
+  // A fresh stage may not have published anything yet.
+  const published = catalog.feeds.filter((f) => f.version !== null).slice(0, 3);
+  await Promise.all(
+    published.map(async ({ id, version }) => {
+      const res = await request.get(
+        `/__platform/storage/feeds/${snapshotKey(id, version as string, feeds[id].browserView)}`,
+      );
+      expect(res.ok(), id).toBe(true);
+      expect(res.headers()['cache-control'], id).toBe('public, max-age=31536000, immutable');
+      expect(((await res.json()) as { version: string }).version, id).toBe(version);
+    }),
+  );
 });
 
 test('the API describes every feed', async ({ request }) => {

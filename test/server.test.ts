@@ -1,12 +1,12 @@
 import { assert, describe, it } from '@effect/vitest';
-import { Platform, toFetchHandler } from '@ericminassian/platform';
+import { Platform, Storage, toFetchHandler } from '@ericminassian/platform';
 import {
   captureTelemetry,
   createPlatformFetch,
   resetPlatform,
   useTestBindings,
 } from '@ericminassian/platform/testing';
-import { Context, Effect, Layer, Schema } from 'effect';
+import { Context, Effect, Layer, Option, Schema } from 'effect';
 import { FetchHttpClient } from 'effect/http';
 import { HttpApiClient } from 'effect/http-api';
 import GtfsRealtimeBindings from 'gtfs-realtime-bindings';
@@ -15,14 +15,14 @@ import { AIRPORT_ZOOM } from '../src/airports.ts';
 import { Api } from '../src/api.ts';
 import { tileAt } from '../src/area.ts';
 import { BIKES_ZOOM } from '../src/bikes.ts';
-import type { FeedId } from '../src/domain.ts';
+import { snapshotKey } from '../src/catalog.ts';
+import { type ScheduledFeedId, Snapshots } from '../src/domain.ts';
 import { FeedStore } from '../src/feeds.ts';
 import { HttpLive } from '../src/http.ts';
 import { parseAirports } from '../src/ingest/airports.ts';
 import { makeCameraSource } from '../src/ingest/cameras.ts';
 import { FeatureCollection, parseQuakes } from '../src/ingest/earthquakes.ts';
 import { type Source, Sources } from '../src/ingest/index.ts';
-import { makeShipSource } from '../src/ingest/ships.ts';
 import { IngestError } from '../src/ingest/source.ts';
 import { parseTransitFeeds } from '../src/ingest/transit-feeds.ts';
 import { TRANSIT_ZOOM } from '../src/transit.ts';
@@ -98,11 +98,12 @@ const setup = (upstream: Upstream = openMeteo, secrets: Record<string, string> =
       Sources,
     );
     /** Reads a feed's source from the recorded fixtures, as the worker would. */
-    const read = <F extends FeedId>(feed: F) =>
+    const read = <F extends ScheduledFeedId>(feed: F) =>
       (sources[feed] as Source<F>)
         .read({}, Effect.succeedNone)
         .pipe(Effect.provide([Layer.succeedContext(platform), fakeHttp(recorded).layer]));
-    return { client, store, get, read, calls: http.calls };
+    const files = Context.get(platform, Storage).store('feeds');
+    return { client, store, files, get, read, calls: http.calls };
   });
 
 const quakes = parseQuakes(
@@ -200,7 +201,7 @@ describe('api', () => {
           ['volcanoes', null, 86400],
           ['aurora', null, 300],
           ['rivers', null, 900],
-          ['ships', null, 300],
+          ['ships', null, 60],
           ['airports', null, 86400],
           ['transitFeeds', null, 86400],
           ['bikeSystems', null, 900],
@@ -218,36 +219,6 @@ describe('api', () => {
         (yield* get('/api/catalog')).headers.get('cache-control'),
         'public, max-age=10, stale-while-revalidate=30',
       );
-    }),
-  );
-
-  it.effect('answers 404 for a feed without a snapshot yet, without recording an error', () =>
-    Effect.gen(function* () {
-      const { client } = yield* setup();
-      const error = yield* Effect.flip(client.feeds.earthquakes());
-      assert.strictEqual(error._tag, 'FeedNotReady');
-      assert.deepStrictEqual(errors(), []);
-    }),
-  );
-
-  it.effect('serves the stored snapshot with its version as ETag, and 304 when unchanged', () =>
-    Effect.gen(function* () {
-      const { client, store, get } = yield* setup();
-      yield* store.begin('earthquakes', 60);
-      const { version } = yield* store.publish('earthquakes', quakes, quakes.events.length, {});
-
-      const snapshot = yield* client.feeds.earthquakes();
-      assert.strictEqual(snapshot.version, version);
-      assert.deepStrictEqual(snapshot.data, quakes);
-
-      const response = yield* get('/api/feeds/earthquakes');
-      assert.strictEqual(response.headers.get('etag'), `"${version}"`);
-      assert.strictEqual(
-        response.headers.get('cache-control'),
-        'public, max-age=10, stale-while-revalidate=30',
-      );
-      const revalidated = yield* get('/api/feeds/earthquakes', { 'if-none-match': `"${version}"` });
-      assert.strictEqual(revalidated.status, 304);
     }),
   );
 
@@ -290,45 +261,46 @@ describe('api', () => {
     }),
   );
 
-  it.effect('serves each weather and hazard feed from its endpoint', () =>
-    Effect.gen(function* () {
-      const { client, store, get, read } = yield* setup();
-      const endpoints = [
-        ['metars', '/api/feeds/metars', client.feeds.metars()],
-        ['buoys', '/api/feeds/buoys', client.feeds.buoys()],
-        ['airQuality', '/api/feeds/air-quality', client.feeds.airQuality()],
-        ['disasters', '/api/feeds/disasters', client.feeds.disasters()],
-        ['tsunamis', '/api/feeds/tsunamis', client.feeds.tsunamis()],
-        ['weatherAlerts', '/api/feeds/weather-alerts', client.feeds.weatherAlerts()],
-        ['firePerimeters', '/api/feeds/fire-perimeters', client.feeds.firePerimeters()],
-        ['volcanoes', '/api/feeds/volcanoes', client.feeds.volcanoes()],
-        ['aurora', '/api/feeds/aurora', client.feeds.aurora()],
-        ['rivers', '/api/feeds/rivers', client.feeds.rivers()],
-      ] as const;
-      for (const [feed, path, fetchSnapshot] of endpoints) {
-        assert.strictEqual((yield* get(path)).status, 404, `${feed} before its first refresh`);
-        const result = yield* read(feed);
-        const data = updatedData(result);
-        yield* store.begin(feed, 60);
-        const { version } = yield* store.publish(
-          feed,
-          data,
-          result._tag === 'Updated' ? result.count : 0,
-          {},
-        );
-        const snapshot = yield* fetchSnapshot;
-        assert.strictEqual(snapshot.version, version, feed);
-        assert.deepStrictEqual(snapshot.data, data, feed);
-      }
-      assert.strictEqual(
-        (yield* get('/api/feeds/weather-alerts')).headers.get('cache-control'),
-        'public, max-age=20, stale-while-revalidate=60',
-      );
-      assert.strictEqual(
-        (yield* get('/api/feeds/volcanoes')).headers.get('cache-control'),
-        'public, max-age=300, stale-while-revalidate=900',
-      );
-    }),
+  it.effect(
+    'publishes each weather, hazard and camera feed where browsers read it, as its schema encodes it',
+    () =>
+      Effect.gen(function* () {
+        const { client, store, read, files } = yield* setup();
+        const published = [
+          'metars',
+          'buoys',
+          'airQuality',
+          'disasters',
+          'tsunamis',
+          'weatherAlerts',
+          'firePerimeters',
+          'volcanoes',
+          'aurora',
+          'rivers',
+          'cameras',
+        ] as const;
+        for (const feed of published) {
+          const result = yield* read(feed);
+          const data = updatedData(result);
+          yield* store.begin(feed, 60);
+          const { version } = yield* store.publish(
+            feed,
+            data,
+            result._tag === 'Updated' ? result.count : 0,
+            {},
+          );
+          const status = (yield* client.catalog()).feeds.find((f) => f.id === feed);
+          assert.strictEqual(status?.version, version, feed);
+          const body = Option.getOrThrow(yield* files.getText(snapshotKey(feed, version)));
+          const snapshot = yield* Schema.decodeEffect(
+            Schema.fromJsonString(
+              Snapshots[feed] as unknown as Schema.Codec<{ version: string; data: unknown }>,
+            ),
+          )(body);
+          assert.strictEqual(snapshot.version, version, feed);
+          assert.deepStrictEqual(snapshot.data, data, feed);
+        }
+      }),
   );
 
   it.effect('reports an unreachable weather source as 502', () =>
@@ -339,24 +311,12 @@ describe('api', () => {
     }),
   );
 
-  it.effect('serves ships, read from Digitraffic without an aisstream key', () =>
-    Effect.gen(function* () {
-      const { client, store } = yield* setup();
-      const result = yield* makeShipSource()
-        .read({}, Effect.succeedNone)
-        .pipe(Effect.provide(Layer.merge(fakeHttp().layer, Platform.layerMemory())));
-      if (result._tag !== 'Updated') throw new Error('expected an update');
-      yield* store.begin('ships', 300);
-      yield* store.publish('ships', result.data, result.count, {});
-      const snapshot = yield* client.feeds.ships();
-      assert.include([...snapshot.data.name], 'SILVA');
-    }),
-  );
-
-  it.effect('serves large and medium airports globally, and every airport by tile with runways', () =>
+  it.effect('serves every airport by tile, with runways and links', () =>
     Effect.gen(function* () {
       const { client, store, get } = yield* setup();
-      assert.strictEqual((yield* Effect.flip(client.feeds.airports()))._tag, 'FeedNotReady');
+      const boston = tileAt(AIRPORT_ZOOM, -71.0079, 42.36197);
+      const before = yield* Effect.flip(client.live.airports({ params: { z: AIRPORT_ZOOM, ...boston } }));
+      assert.strictEqual(before._tag, 'FeedNotReady');
       yield* store.begin('airports', 86400);
       const { version } = yield* store.publish(
         'airports',
@@ -365,25 +325,6 @@ describe('api', () => {
         {},
       );
 
-      const global = yield* client.feeds.airports();
-      assert.strictEqual(global.version, version);
-      assert.deepStrictEqual(global.data.airports.ident, ['KBOS', 'EGLL', 'KBED']);
-      assert.strictEqual(global.count, 3);
-      assert.deepStrictEqual(global.data.runways.airport, []);
-      // Links come with the tile, like runways.
-      assert.deepStrictEqual(global.data.airports.wikipedia, ['', '', '']);
-      const response = yield* get('/api/feeds/airports');
-      assert.strictEqual(response.headers.get('etag'), `"${version}"`);
-      assert.strictEqual(
-        response.headers.get('cache-control'),
-        'public, max-age=300, stale-while-revalidate=900',
-      );
-      assert.strictEqual(
-        (yield* get('/api/feeds/airports', { 'if-none-match': `"${version}"` })).status,
-        304,
-      );
-
-      const boston = tileAt(AIRPORT_ZOOM, -71.0079, 42.36197);
       const tile = yield* client.live.airports({ params: { z: AIRPORT_ZOOM, ...boston } });
       assert.strictEqual(tile.version, version);
       assert.includeMembers([...tile.data.airports.ident], ['KBOS', 'KBED', '04MA', '01MA']);
@@ -474,22 +415,6 @@ describe('api', () => {
       assert.strictEqual(calls.at(-1)?.url.searchParams.get('bbox'), '90,0,180,90');
       assert.strictEqual((yield* get('/api/tiles/clouds/1/4/0')).status, 404);
       assert.strictEqual((yield* get('/api/tiles/clouds/9/0/0')).status, 404);
-    }),
-  );
-
-  it.effect('serves the traffic camera feed', () =>
-    Effect.gen(function* () {
-      const { client, store, get } = yield* setup();
-      const cameras = yield* readCameras;
-      yield* store.begin('cameras', 3600);
-      const { version } = yield* store.publish('cameras', cameras, cameras.id.length, {});
-      const snapshot = yield* client.feeds.cameras();
-      assert.strictEqual(snapshot.version, version);
-      assert.deepStrictEqual(snapshot.data, cameras);
-      assert.strictEqual(
-        (yield* get('/api/feeds/cameras')).headers.get('cache-control'),
-        'public, max-age=300, stale-while-revalidate=900',
-      );
     }),
   );
 

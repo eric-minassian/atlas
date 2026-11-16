@@ -1,24 +1,22 @@
-import { Secrets } from '@ericminassian/platform';
-import { Clock, Effect, Option, Predicate, Redacted, Result, Schema } from 'effect';
+import { Effect, Option, Predicate, Schema } from 'effect';
 import { Socket } from 'effect/socket';
 import type { ShipData } from '../domain.ts';
-import { type Columns, decodeJson, get, IngestError, okText, round, type Source, updated } from './source.ts';
+import { type Columns, decodeJson, get, IngestError, okText, round } from './source.ts';
 
 /**
  * Ships from AIS. aisstream.io relays a worldwide network of volunteer
- * receivers over a WebSocket; the worker can't hold one open between runs, so
- * each refresh listens for a while and merges what it heard into the previous
- * snapshot. Fintraffic's Digitraffic (the Baltic, no key) is read every time,
- * so the layer works without an aisstream key too.
+ * receivers over a WebSocket, which the `ships` service (src/ships.ts) holds
+ * open; Fintraffic's Digitraffic (the Baltic, no key) is polled, so the layer
+ * works without an aisstream key too.
  */
 const AISSTREAM_URL = 'wss://stream.aisstream.io/v0/stream';
 const DIGITRAFFIC_URL = 'https://meri.digitraffic.fi/api/ais/v1';
-/** Well inside the worker's 120 s, leaving time for the merge and publishing. */
-const LISTEN_SECONDS = 45;
+/** A connection that delivers nothing for this long has stalled. */
+const QUIET = '2 minutes';
 /** A vessel under way that goes unheard this long has left coverage. */
 const MOVING_TTL_S = 30 * 60;
 /** Moored and anchored vessels report every few minutes and move little, so they're kept longer. */
-const STATIONARY_TTL_S = 3 * 60 * 60;
+export const STATIONARY_TTL_S = 3 * 60 * 60;
 const MOVING_KNOTS = 0.5;
 /** At anchor, moored, aground. */
 const STATIONARY_STATUS = new Set([1, 5, 6]);
@@ -259,7 +257,7 @@ export const parseAisTime = (value: string): number | undefined => {
   return Number.isFinite(ms) ? ms / 1000 : undefined;
 };
 
-/** What a listen heard: the latest position per vessel and every static report, merged per vessel. */
+/** What a batch of messages said: the latest position per vessel and every static report, merged per vessel. */
 export class AisCollector {
   readonly positions = new Map<number, Position>();
   readonly statics = new Map<number, Static>();
@@ -370,24 +368,36 @@ export class AisCollector {
   }
 
   private static(s: Static): void {
-    const known = this.statics.get(s.mmsi);
-    const defined = Object.fromEntries(Object.entries(s).filter(([, v]) => v !== '' && v !== 0));
-    this.statics.set(s.mmsi, { ...known, ...defined, mmsi: s.mmsi });
+    this.statics.set(s.mmsi, mergeStatic(this.statics.get(s.mmsi), s));
   }
 }
+
+/** `known` with whatever `s` says: empty strings and zeros say nothing. */
+export const mergeStatic = (known: Static | undefined, s: Static): Static => {
+  const defined = Object.fromEntries(Object.entries(s).filter(([, v]) => v !== '' && v !== 0));
+  return { ...known, ...defined, mmsi: s.mmsi };
+};
 
 const textDecoder = new TextDecoder();
 
 /**
- * Listens to aisstream.io for `seconds`. The subscription must be sent within
- * 3 s of connecting, and the service drops messages for slow readers, so each
- * frame is folded into the collector as it arrives. aisstream caps the
- * bandwidth of uncompressed connections; Node's WebSocket (Node 22+, as on
- * Lambda) negotiates permessage-deflate. The account allows 3 connections at
+ * Holds a connection to aisstream.io, handing each batch of messages to `hear`
+ * as it arrives. The subscription must be sent within 3 s of connecting, and
+ * the service drops messages for slow readers, so frames are decoded as they
+ * come. aisstream caps the bandwidth of uncompressed connections; Node's
+ * WebSocket negotiates permessage-deflate. The account allows 3 connections at
  * once, shared by every stage using the key.
+ *
+ * Returns how many messages it heard and why it ended once a connection that
+ * delivered messages closes or goes quiet, which aisstream connections do now
+ * and then. Fails when it can't connect, the key is refused, or the connection
+ * ends before delivering anything.
  */
-const listen = Effect.fnUntraced(function* (key: string, seconds: number) {
-  const collector = new AisCollector();
+export const streamAisstream = Effect.fnUntraced(function* (
+  key: string,
+  hear: (batch: AisCollector) => Effect.Effect<void>,
+) {
+  let messages = 0;
   const socket = yield* Socket.makeWebSocket(AISSTREAM_URL, { openTimeout: '10 seconds' });
   const ended = yield* Effect.gen(function* () {
     const reader = yield* socket.reader;
@@ -404,29 +414,29 @@ const listen = Effect.fnUntraced(function* (key: string, seconds: number) {
         FilterMessageTypes: aisMessageTypes,
       }),
     );
-    const deadline = (yield* Clock.currentTimeMillis) + seconds * 1000;
     while (true) {
-      const remaining = deadline - (yield* Clock.currentTimeMillis);
-      if (remaining <= 0) return undefined;
-      const frames = yield* Effect.timeoutOption(reader.pull, remaining);
-      if (Option.isNone(frames)) return undefined;
+      const frames = yield* Effect.timeoutOption(reader.pull, QUIET);
+      if (Option.isNone(frames)) {
+        if (messages === 0) return yield* new IngestError({ message: 'aisstream.io sent nothing' });
+        return `nothing heard for ${QUIET}`;
+      }
+      const batch = new AisCollector();
       for (const frame of frames.value)
-        collector.add(typeof frame === 'string' ? frame : textDecoder.decode(frame));
+        batch.add(typeof frame === 'string' ? frame : textDecoder.decode(frame));
+      if (batch.error !== undefined)
+        return yield* new IngestError({ message: `aisstream.io: ${batch.error}` });
+      messages += batch.messages;
+      yield* hear(batch);
     }
   }).pipe(
     Effect.scoped,
-    // A connection closed early still leaves what it delivered.
-    Effect.catchTag('SocketError', (error) => Effect.succeed(error)),
+    Effect.catchTag('SocketError', (error) =>
+      messages === 0
+        ? Effect.fail(new IngestError({ message: `aisstream.io: ${error.message}` }))
+        : Effect.succeed(error.message),
+    ),
   );
-  if (collector.error !== undefined)
-    return yield* new IngestError({ message: `aisstream.io: ${collector.error}` });
-  if (ended && collector.messages === 0)
-    return yield* new IngestError({ message: `aisstream.io: ${ended.message}` });
-  if (ended)
-    yield* Effect.logWarning('aisstream.io closed the connection early').pipe(
-      Effect.annotateLogs({ error: ended.message, messages: collector.messages }),
-    );
-  return collector;
+  return { messages, ended };
 });
 
 // ---------------------------------------------------------------------------
@@ -500,77 +510,27 @@ export const parseDigitraffic = (
   })),
 });
 
-const readDigitraffic = Effect.fnUntraced(function* (now: number) {
+/**
+ * Positions and static data from Digitraffic: everything vessels reported
+ * since `since` (epoch ms), or for as long as vessels are kept when there's no
+ * earlier poll to carry on from.
+ */
+export const readDigitraffic = Effect.fnUntraced(function* (now: number, since?: number) {
   // Digitraffic asks clients to name themselves.
   const headers = { 'digitraffic-user': 'atlas' };
+  const from = since ?? now - STATIONARY_TTL_S * 1000;
   const [locations, vessels] = yield* Effect.all(
     [
-      // Nothing older than the longest a vessel is kept.
-      get(`${DIGITRAFFIC_URL}/locations?from=${Math.floor((now - STATIONARY_TTL_S) * 1000)}`, {
-        headers,
-      }).pipe(Effect.flatMap(okText), Effect.flatMap(decodeJson(DigitrafficLocations))),
-      get(`${DIGITRAFFIC_URL}/vessels`, { headers }).pipe(
+      get(`${DIGITRAFFIC_URL}/locations?from=${Math.floor(from)}`, { headers }).pipe(
         Effect.flatMap(okText),
-        Effect.flatMap(decodeJson(DigitrafficVessels)),
+        Effect.flatMap(decodeJson(DigitrafficLocations)),
       ),
+      // Without `from`, static data updated in the past day.
+      get(`${DIGITRAFFIC_URL}/vessels${since === undefined ? '' : `?from=${Math.floor(since)}`}`, {
+        headers,
+      }).pipe(Effect.flatMap(okText), Effect.flatMap(decodeJson(DigitrafficVessels))),
     ],
     { concurrency: 2 },
   );
   return parseDigitraffic(locations, vessels);
-});
-
-export interface ShipSourceOptions {
-  /** Opens the aisstream.io connection; tests stand in a scripted socket. */
-  readonly webSocket?: Socket.WebSocketConstructor['Service'];
-}
-
-export const makeShipSource = (options: ShipSourceOptions = {}): Source<'ships'> => ({
-  read: (_validators, previous) =>
-    Effect.gen(function* () {
-      const key = yield* (yield* Secrets).getOptional('AISSTREAM_KEY');
-      const now = (yield* Clock.currentTimeMillis) / 1000;
-      const stream = Option.match(key, {
-        onNone: () => Effect.undefined,
-        onSome: (k) =>
-          listen(Redacted.value(k), LISTEN_SECONDS).pipe(
-            options.webSocket
-              ? Effect.provideService(Socket.WebSocketConstructor, options.webSocket)
-              : Effect.provide(Socket.layerWebSocketConstructorGlobal),
-          ),
-      });
-      const [heard, baltic] = yield* Effect.all(
-        [Effect.result(stream), Effect.result(readDigitraffic(now))],
-        {
-          concurrency: 2,
-        },
-      );
-      if (Result.isFailure(heard) && Result.isFailure(baltic))
-        return yield* new IngestError({
-          message: `${heard.failure.message}; Digitraffic: ${baltic.failure.message}`,
-        });
-      // One source is better than none: keep publishing, and say which one failed.
-      const failed = (source: string, error: IngestError) =>
-        Effect.logWarning('ship source failed').pipe(Effect.annotateLogs({ source, error: error.message }));
-      if (Result.isFailure(heard)) yield* failed('aisstream.io', heard.failure);
-      if (Result.isFailure(baltic)) yield* failed('Digitraffic', baltic.failure);
-      const positions: Position[] = [];
-      const statics: Static[] = [];
-      if (Result.isSuccess(baltic)) {
-        positions.push(...baltic.success.positions);
-        statics.push(...baltic.success.statics);
-      }
-      if (Result.isSuccess(heard) && heard.success) {
-        positions.push(...heard.success.positions.values());
-        statics.push(...heard.success.statics.values());
-        yield* Effect.logInfo('heard aisstream.io').pipe(
-          Effect.annotateLogs({
-            messages: heard.success.messages,
-            vessels: heard.success.positions.size,
-            skipped: heard.success.skipped,
-          }),
-        );
-      }
-      const data = mergeShips(Option.getOrUndefined(yield* previous), positions, statics, now);
-      return updated<'ships'>(data, data.mmsi.length);
-    }),
 });

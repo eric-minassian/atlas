@@ -2,7 +2,7 @@ import { Metrics, Queues, type Secrets } from '@ericminassian/platform';
 import { Context, DateTime, Effect, Layer, Result } from 'effect';
 import type { HttpClient } from 'effect/http';
 import { feeds } from './catalog.ts';
-import { type FeedId, feedIds } from './domain.ts';
+import { type ScheduledFeedId, scheduledFeedIds } from './domain.ts';
 import { type FeedState, FeedStore } from './feeds.ts';
 import { type Source, Sources, type Validators } from './ingest/index.ts';
 
@@ -20,14 +20,14 @@ export const isDue = (state: FeedState | undefined, intervalSeconds: number, now
   return now - state.attemptedAt >= wait - SLACK_MS;
 };
 
-/** Decides which feeds are due (`tick`) and refreshes one feed (`refresh`). */
+/** Decides which scheduled feeds are due (`tick`) and refreshes one feed (`refresh`). */
 export class Refresher extends Context.Service<
   Refresher,
   {
     /** Queues a refresh for every feed that is due; returns them. */
-    readonly tick: Effect.Effect<ReadonlyArray<FeedId>>;
+    readonly tick: Effect.Effect<ReadonlyArray<ScheduledFeedId>>;
     /** Reads the feed's source and publishes a snapshot if it changed. Failures are recorded, not raised. */
-    refresh(feed: FeedId): Effect.Effect<void>;
+    refresh(feed: ScheduledFeedId): Effect.Effect<void>;
   }
 >()('atlas/Refresher') {
   static readonly layer = Layer.effect(
@@ -44,8 +44,8 @@ export class Refresher extends Context.Service<
       const tick = Effect.gen(function* () {
         const at = yield* now;
         const states = yield* store.states;
-        const due: FeedId[] = [];
-        for (const feed of feedIds) {
+        const due: ScheduledFeedId[] = [];
+        for (const feed of scheduledFeedIds) {
           if (isDue(states.get(feed), feeds[feed].intervalSeconds, at)) due.push(feed);
         }
         if (due.length > 0)
@@ -57,10 +57,12 @@ export class Refresher extends Context.Service<
       }).pipe(Effect.withSpan('Refresher.tick'));
 
       /** Reads `feed`'s source, typed per feed so it gets its own previous payload. */
-      const read = <F extends FeedId>(feed: F, validators: Validators): ReturnType<Source<F>['read']> =>
-        (sources[feed] as Source<F>).read(validators, store.payload(feed));
+      const read = <F extends ScheduledFeedId>(
+        feed: F,
+        validators: Validators,
+      ): ReturnType<Source<F>['read']> => (sources[feed] as Source<F>).read(validators, store.payload(feed));
 
-      const refresh = Effect.fn('Refresher.refresh')(function* (feed: FeedId) {
+      const refresh = Effect.fn('Refresher.refresh')(function* (feed: ScheduledFeedId) {
         const validators = yield* store.begin(feed, feeds[feed].intervalSeconds);
         const started = yield* now;
         const result = yield* read(feed, validators).pipe(

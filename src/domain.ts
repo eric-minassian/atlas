@@ -35,8 +35,19 @@ export const feedIds = [
 export const FeedId = Schema.Literals(feedIds);
 export type FeedId = typeof FeedId.Type;
 
+/** Feeds a long-running service publishes as their source streams in (src/ships.ts), not the worker. */
+export const streamedFeedIds = ['ships'] as const satisfies ReadonlyArray<FeedId>;
+export type StreamedFeedId = (typeof streamedFeedIds)[number];
+
+/** Feeds the worker refreshes on a schedule (src/refresh.ts). */
+export type ScheduledFeedId = Exclude<FeedId, StreamedFeedId>;
+export const scheduledFeedIds = feedIds.filter(
+  (feed): feed is ScheduledFeedId => !(streamedFeedIds as ReadonlyArray<FeedId>).includes(feed),
+);
+export const ScheduledFeedId = Schema.Literals(scheduledFeedIds);
+
 /** Body of the `refresh` queue (`queue<RefreshJob>()` in plat.config.ts). */
-export const RefreshJob = Schema.Struct({ feed: FeedId });
+export const RefreshJob = Schema.Struct({ feed: ScheduledFeedId });
 export type RefreshJob = typeof RefreshJob.Type;
 
 const Column = <S extends Schema.Top>(item: S) => Schema.Array(item);
