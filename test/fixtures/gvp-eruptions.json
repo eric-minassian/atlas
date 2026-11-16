@@ -1,0 +1,92 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "id": "E3WebApp_Eruptions1960.fid-bc1c4cb_1a1e1da7709_3df6",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -155.287,
+     19.421
+    ]
+   },
+   "geometry_name": "GeoLocation",
+   "properties": {
+    "VolcanoNumber": 332010,
+    "VolcanoName": "Kilauea",
+    "ExplosivityIndexMax": 1,
+    "StartDate": "20241223",
+    "StartDateYear": 2024,
+    "StartDateMonth": 12,
+    "StartDateDay": 23,
+    "EndDate": "20260325",
+    "EndDateYear": 2026,
+    "EndDateMonth": 3,
+    "EndDateDay": 25,
+    "ContinuingEruption": "True",
+    "LatitudeDecimal": 19.421,
+    "LongitudeDecimal": -155.287,
+    "Activity_ID": 22597
+   }
+  },
+  {
+   "type": "Feature",
+   "id": "E3WebApp_Eruptions1960.fid-bc1c4cb_1a1e1da7709_3df8",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     15.213,
+     38.789
+    ]
+   },
+   "geometry_name": "GeoLocation",
+   "properties": {
+    "VolcanoNumber": 211040,
+    "VolcanoName": "Stromboli",
+    "ExplosivityIndexMax": 2,
+    "StartDate": "19340202",
+    "StartDateYear": 1934,
+    "StartDateMonth": 2,
+    "StartDateDay": 2,
+    "EndDate": "20260331",
+    "EndDateYear": 2026,
+    "EndDateMonth": 3,
+    "EndDateDay": 31,
+    "ContinuingEruption": "True",
+    "LatitudeDecimal": 38.789,
+    "LongitudeDecimal": 15.213,
+    "Activity_ID": 13435
+   }
+  },
+  {
+   "type": "Feature",
+   "id": "E3WebApp_Eruptions1960.fid-bc1c4cb_1a1e1da7709_2a12",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     29.2,
+     -1.408
+    ]
+   },
+   "geometry_name": "GeoLocation",
+   "properties": {
+    "VolcanoNumber": 223020,
+    "VolcanoName": "Nyamulagira",
+    "ExplosivityIndexMax": 0,
+    "StartDate": "20161127",
+    "StartDateYear": 2016,
+    "StartDateMonth": 11,
+    "StartDateDay": 27,
+    "EndDate": "20170502",
+    "EndDateYear": 2017,
+    "EndDateMonth": 5,
+    "EndDateDay": 2,
+    "ContinuingEruption": "False",
+    "LatitudeDecimal": -1.408,
+    "LongitudeDecimal": 29.2,
+    "Activity_ID": 22202
+   }
+  }
+ ]
+}

@@ -8,19 +8,29 @@ import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from 'effect/http-api';
 import {
   AircraftNearby,
+  AirQualitySnapshot,
+  AuroraSnapshot,
+  BuoySnapshot,
   Catalog,
   ClientConfig,
+  DisasterSnapshot,
   EarthquakeSnapshot,
   EventSnapshot,
   FeedNotReady,
+  FirePerimeterSnapshot,
   FireSnapshot,
   Here,
   Latitude,
   Longitude,
+  MetarSnapshot,
   RadarSnapshot,
+  RiverSnapshot,
   SatelliteSnapshot,
   TileOutOfRange,
+  TsunamiSnapshot,
   UpstreamUnavailable,
+  VolcanoSnapshot,
+  WeatherAlertSnapshot,
 } from './domain.ts';
 
 const LatitudeParam = Schema.FiniteFromString.pipe(Schema.decodeTo(Latitude));
@@ -34,7 +44,7 @@ export class SystemApi extends HttpApiGroup.make('system', { topLevel: true }).a
   HttpApiEndpoint.get('config', '/config', { success: ClientConfig }),
   /** Every feed's freshness: current version, last update, size and last error. */
   HttpApiEndpoint.get('catalog', '/catalog', { success: Catalog }),
-  /** Conditions at a point (weather, elevation, time zone). */
+  /** Conditions at a point (weather, air quality, elevation, time zone). */
   HttpApiEndpoint.get('here', '/here', {
     query: {
       lat: LatitudeParam,
@@ -56,6 +66,22 @@ export class FeedsApi extends HttpApiGroup.make('feeds')
     HttpApiEndpoint.get('fires', '/fires', { success: FireSnapshot, error: FeedNotReady }),
     HttpApiEndpoint.get('events', '/events', { success: EventSnapshot, error: FeedNotReady }),
     HttpApiEndpoint.get('radar', '/radar', { success: RadarSnapshot, error: FeedNotReady }),
+    HttpApiEndpoint.get('metars', '/metars', { success: MetarSnapshot, error: FeedNotReady }),
+    HttpApiEndpoint.get('buoys', '/buoys', { success: BuoySnapshot, error: FeedNotReady }),
+    HttpApiEndpoint.get('airQuality', '/air-quality', { success: AirQualitySnapshot, error: FeedNotReady }),
+    HttpApiEndpoint.get('disasters', '/disasters', { success: DisasterSnapshot, error: FeedNotReady }),
+    HttpApiEndpoint.get('tsunamis', '/tsunamis', { success: TsunamiSnapshot, error: FeedNotReady }),
+    HttpApiEndpoint.get('weatherAlerts', '/weather-alerts', {
+      success: WeatherAlertSnapshot,
+      error: FeedNotReady,
+    }),
+    HttpApiEndpoint.get('firePerimeters', '/fire-perimeters', {
+      success: FirePerimeterSnapshot,
+      error: FeedNotReady,
+    }),
+    HttpApiEndpoint.get('volcanoes', '/volcanoes', { success: VolcanoSnapshot, error: FeedNotReady }),
+    HttpApiEndpoint.get('aurora', '/aurora', { success: AuroraSnapshot, error: FeedNotReady }),
+    HttpApiEndpoint.get('rivers', '/rivers', { success: RiverSnapshot, error: FeedNotReady }),
   )
   .prefix('/feeds') {}
 

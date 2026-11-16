@@ -1,0 +1,43 @@
+{
+ "@context": "http://environment.data.gov.uk/flood-monitoring/meta/context.jsonld",
+ "meta": {
+  "publisher": "Environment Agency",
+  "licence": "http://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+  "documentation": "http://environment.data.gov.uk/flood-monitoring/doc/reference",
+  "version": "0.9",
+  "comment": "Status: Beta service",
+  "hasFormat": [
+   "http://environment.data.gov.uk/flood-monitoring/id/floodAreas/031WAF213.rdf",
+   "http://environment.data.gov.uk/flood-monitoring/id/floodAreas/031WAF213.ttl",
+   "http://environment.data.gov.uk/flood-monitoring/id/floodAreas/031WAF213.html"
+  ]
+ },
+ "items": {
+  "@id": "http://environment.data.gov.uk/flood-monitoring/id/floodAreas/031WAF213",
+  "county": "Gloucestershire, Herefordshire, Worcestershire",
+  "description": "River Leadon and its tributaries",
+  "eaAreaName": "West Midlands",
+  "envelope": {
+   "lowerCorner": {
+    "x": 363404,
+    "y": 219841
+   },
+   "upperCorner": {
+    "x": 381598,
+    "y": 247766
+   }
+  },
+  "fwdCode": "031WAF213",
+  "label": "River Leadon catchment",
+  "lat": 51.9776,
+  "long": -2.39645,
+  "notation": "031WAF213",
+  "polygon": "http://environment.data.gov.uk/flood-monitoring/id/floodAreas/031WAF213/polygon",
+  "quickDialNumber": "209023",
+  "riverOrSea": "Leadon, Glynch",
+  "type": [
+   "http://environment.data.gov.uk/flood-monitoring/def/core/FloodAlertArea",
+   "http://environment.data.gov.uk/flood-monitoring/def/core/FloodArea"
+  ]
+ }
+}

@@ -1,0 +1,159 @@
+[
+ {
+  "uuid": "b475386c-30cc-453a-b3b7-1d17ace13595",
+  "number": "48300105",
+  "shortname": "CELLE",
+  "longname": "CELLE",
+  "km": 1.74,
+  "agency": "VERDEN",
+  "longitude": 10.062164,
+  "latitude": 52.622706,
+  "voiceServiceNumber": "+49 228 286527 001",
+  "water": {
+   "shortname": "ALLER",
+   "longname": "ALLER"
+  },
+  "timeseries": [
+   {
+    "shortname": "W",
+    "longname": "WASSERSTAND ROHDATEN",
+    "unit": "cm",
+    "equidistance": 15,
+    "currentMeasurement": {
+     "timestamp": "2026-11-16T02:00:00+01:00",
+     "value": 119.0,
+     "stateMnwMhw": "normal",
+     "stateNswHsw": "normal"
+    },
+    "gaugeZero": {
+     "unit": "m. \u00fc. NN",
+     "value": 31.82,
+     "validFrom": "1936-11-01"
+    }
+   }
+  ]
+ },
+ {
+  "uuid": "47174d8f-1b8e-4599-8a59-b580dd55bc87",
+  "number": "48900237",
+  "shortname": "EITZE",
+  "longname": "EITZE",
+  "km": 107.75,
+  "agency": "VERDEN",
+  "longitude": 9.276769,
+  "latitude": 52.904065,
+  "voiceServiceNumber": "+49 228 286527 005",
+  "water": {
+   "shortname": "ALLER",
+   "longname": "ALLER"
+  },
+  "timeseries": [
+   {
+    "shortname": "W",
+    "longname": "WASSERSTAND ROHDATEN",
+    "unit": "cm",
+    "equidistance": 15,
+    "currentMeasurement": {
+     "timestamp": "2026-11-16T02:00:00+01:00",
+     "value": 234.0,
+     "stateMnwMhw": "low",
+     "stateNswHsw": "unknown"
+    },
+    "gaugeZero": {
+     "unit": "m. \u00fc. NN",
+     "value": 8.0,
+     "validFrom": "1985-03-13"
+    }
+   }
+  ]
+ },
+ {
+  "uuid": "facc5c16-f700-4248-9893-a395bffaf2e4",
+  "number": "27800090",
+  "shortname": "WALTROP",
+  "longname": "WALTROP",
+  "km": 2.144,
+  "agency": "RHEINE",
+  "longitude": 7.380201,
+  "latitude": 51.639741,
+  "voiceServiceNumber": "+49 228 286527 012",
+  "water": {
+   "shortname": "DHK",
+   "longname": "DATTELN-HAMM-KANAL"
+  },
+  "timeseries": [
+   {
+    "shortname": "W",
+    "longname": "WASSERSTAND ROHDATEN",
+    "unit": "m+NN",
+    "equidistance": 1,
+    "currentMeasurement": {
+     "timestamp": "2026-11-16T01:45:00+01:00",
+     "value": 56.53,
+     "stateMnwMhw": "unknown",
+     "stateNswHsw": "unknown"
+    }
+   }
+  ]
+ },
+ {
+  "uuid": "67d6e882-b60c-40d3-975c-a6d7a2b4e40a",
+  "number": "5930010",
+  "shortname": "NEU DARCHAU",
+  "longname": "NEU DARCHAU",
+  "km": 536.385,
+  "agency": "STANDORT LAUENBURG",
+  "longitude": 10.888819,
+  "latitude": 53.232258,
+  "voiceServiceNumber": "+49 228 286527 101",
+  "water": {
+   "shortname": "ELBE",
+   "longname": "ELBE"
+  },
+  "timeseries": [
+   {
+    "shortname": "W",
+    "longname": "WASSERSTAND ROHDATEN",
+    "unit": "cm",
+    "equidistance": 15,
+    "currentMeasurement": {
+     "timestamp": "2026-11-13T06:00:00+01:00",
+     "value": 74.0,
+     "stateMnwMhw": "out-dated",
+     "stateNswHsw": "out-dated"
+    },
+    "gaugeZero": {
+     "unit": "m. \u00fc. NHN",
+     "value": 5.658,
+     "validFrom": "2017-11-01"
+    }
+   }
+  ]
+ },
+ {
+  "uuid": "6c6f84c2-b7ea-4720-8ecd-a83c100c6291",
+  "number": "123456785",
+  "shortname": "DORDRECHT",
+  "longname": "DORDRECHT",
+  "km": 975.0,
+  "agency": "RIJKSWATERSTAAT",
+  "water": {
+   "shortname": "ALTE_MAAS",
+   "longname": "ALTE MAAS"
+  },
+  "timeseries": [
+   {
+    "shortname": "W",
+    "longname": "WASSERSTAND ROHDATEN",
+    "unit": "cm",
+    "equidistance": 10,
+    "currentMeasurement": {
+     "timestamp": "2026-11-16T02:00:00+01:00",
+     "value": 44.0,
+     "stateMnwMhw": "unknown",
+     "stateNswHsw": "unknown"
+    }
+   }
+  ]
+ }
+]

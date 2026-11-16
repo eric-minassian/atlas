@@ -1,0 +1,100 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "id": "Smithsonian_VOTW_Holocene_Volcanoes.fid-bc1c4cb_1a1e1e9dc27_-6218",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     6.85,
+     50.17
+    ]
+   },
+   "geometry_name": "GeoLocation",
+   "properties": {
+    "Volcano_Number": 210010,
+    "Volcano_Name": "West Eifel Volcanic Field",
+    "Volcanic_Landform": "Cluster",
+    "Primary_Volcano_Type": "Volcanic field",
+    "Last_Eruption_Year": -8300,
+    "Country": "Germany",
+    "Elevation": 600,
+    "Primary_Photo_Link": "https://volcano.si.edu/gallery/photos/GVP-01501.jpg",
+    "Primary_Photo_Credit": "Photo by Richard Waitt, 1990 (U.S. Geological Survey)."
+   }
+  },
+  {
+   "type": "Feature",
+   "id": "Smithsonian_VOTW_Holocene_Volcanoes.fid-bc1c4cb_1a1e1e9dc27_-6213",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     14.139,
+     40.827
+    ]
+   },
+   "geometry_name": "GeoLocation",
+   "properties": {
+    "Volcano_Number": 211010,
+    "Volcano_Name": "Campi Flegrei",
+    "Volcanic_Landform": "Caldera",
+    "Primary_Volcano_Type": "Caldera",
+    "Last_Eruption_Year": 1538,
+    "Country": "Italy",
+    "Elevation": 458,
+    "Primary_Photo_Link": "https://volcano.si.edu/gallery/photos/GVP-01511.jpg",
+    "Primary_Photo_Credit": "NASA Landsat image, 1984."
+   }
+  },
+  {
+   "type": "Feature",
+   "id": "Smithsonian_VOTW_Holocene_Volcanoes.fid-bc1c4cb_1a1e1e9dc27_-5ef2",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -155.287,
+     19.421
+    ]
+   },
+   "geometry_name": "GeoLocation",
+   "properties": {
+    "Volcano_Number": 332010,
+    "Volcano_Name": "Kilauea",
+    "Volcanic_Landform": "Shield",
+    "Primary_Volcano_Type": "Shield",
+    "Last_Eruption_Year": 2026,
+    "Country": "United States",
+    "Elevation": 1222,
+    "Primary_Photo_Link": "https://volcano.si.edu/gallery/photos/GVP-03420.jpg",
+    "Primary_Photo_Credit": "Photo by Richard Fiske, 1968 (Smithsonian Institution)."
+   }
+  },
+  {
+   "type": "Feature",
+   "id": "Smithsonian_VOTW_Holocene_Volcanoes.fid-bc1c4cb_1a1e1e9dc27_-6164",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     178.05,
+     -36.13
+    ]
+   },
+   "geometry_name": "GeoLocation",
+   "properties": {
+    "Volcano_Number": 241120,
+    "Volcano_Name": "Rumble IV",
+    "Volcanic_Landform": "Composite",
+    "Primary_Volcano_Type": "Stratovolcano",
+    "Last_Eruption_Year": null,
+    "Country": "New Zealand",
+    "Elevation": -500,
+    "Primary_Photo_Link": null,
+    "Primary_Photo_Credit": null
+   }
+  }
+ ],
+ "totalFeatures": 1214,
+ "numberMatched": 1214,
+ "numberReturned": 4
+}

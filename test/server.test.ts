@@ -11,37 +11,54 @@ import { FetchHttpClient } from 'effect/http';
 import { HttpApiClient } from 'effect/http-api';
 import { afterEach, beforeEach } from 'vitest';
 import { Api } from '../src/api.ts';
+import type { FeedId } from '../src/domain.ts';
 import { FeedStore } from '../src/feeds.ts';
 import { HttpLive } from '../src/http.ts';
 import { FeatureCollection, parseQuakes } from '../src/ingest/earthquakes.ts';
-import { fakeHttp, fixture, recorded, type Upstream } from './support.ts';
+import { type Source, Sources } from '../src/ingest/index.ts';
+import { fakeHttp, fixture, recorded, type Upstream, updatedData } from './support.ts';
 
 const BASE = 'http://atlas.localhost';
 
+const airQuality = {
+  latitude: 34.1,
+  longitude: -118.2,
+  current: {
+    time: '2026-11-15T14:00',
+    us_aqi: 76,
+    pm2_5: 14.7,
+    pm10: 18.1,
+    ozone: 74,
+    nitrogen_dioxide: 28.2,
+  },
+};
+
 const openMeteo: Upstream = (call) =>
-  call.url.host === 'api.open-meteo.com'
-    ? Response.json({
-        latitude: 34.06,
-        longitude: -118.25,
-        elevation: 89,
-        timezone: 'America/Los_Angeles',
-        utc_offset_seconds: -28800,
-        current: {
-          time: '2026-11-15T14:30',
-          temperature_2m: 19.4,
-          apparent_temperature: 18.2,
-          relative_humidity_2m: 41,
-          precipitation: 0,
-          weather_code: 1,
-          cloud_cover: 12,
-          wind_speed_10m: 9.4,
-          wind_direction_10m: 250,
-          wind_gusts_10m: 18.7,
-          pressure_msl: 1016.2,
-          is_day: 1,
-        },
-      })
-    : recorded(call);
+  call.url.host === 'air-quality-api.open-meteo.com'
+    ? Response.json(airQuality)
+    : call.url.host === 'api.open-meteo.com'
+      ? Response.json({
+          latitude: 34.06,
+          longitude: -118.25,
+          elevation: 89,
+          timezone: 'America/Los_Angeles',
+          utc_offset_seconds: -28800,
+          current: {
+            time: '2026-11-15T14:30',
+            temperature_2m: 19.4,
+            apparent_temperature: 18.2,
+            relative_humidity_2m: 41,
+            precipitation: 0,
+            weather_code: 1,
+            cloud_cover: 12,
+            wind_speed_10m: 9.4,
+            wind_direction_10m: 250,
+            wind_gusts_10m: 18.7,
+            pressure_msl: 1016.2,
+            is_day: 1,
+          },
+        })
+      : recorded(call);
 
 /** The app on a fresh in-memory platform, plus a FeedStore over the same storage to publish with. */
 const setup = (upstream: Upstream = openMeteo, secrets: Record<string, string> = {}) =>
@@ -66,7 +83,16 @@ const setup = (upstream: Upstream = openMeteo, secrets: Record<string, string> =
     );
     const get = (path: string, headers: Record<string, string> = {}) =>
       Effect.promise(() => fetch(new Request(`${BASE}${path}`, { headers })));
-    return { client, store, get, calls: http.calls };
+    const sources = Context.get(
+      yield* Layer.build(Sources.layer.pipe(Layer.provide(Layer.succeedContext(platform)))),
+      Sources,
+    );
+    /** Reads a feed's source from the recorded fixtures, as the worker would. */
+    const read = <F extends FeedId>(feed: F) =>
+      (sources[feed] as Source<F>)
+        .read({}, Effect.succeedNone)
+        .pipe(Effect.provide([Layer.succeedContext(platform), fakeHttp(recorded).layer]));
+    return { client, store, get, read, calls: http.calls };
   });
 
 const quakes = parseQuakes(
@@ -135,6 +161,16 @@ describe('api', () => {
           ['fires', null, 1800],
           ['events', null, 900],
           ['radar', null, 300],
+          ['metars', null, 300],
+          ['buoys', null, 600],
+          ['airQuality', null, 300],
+          ['disasters', null, 600],
+          ['tsunamis', null, 120],
+          ['weatherAlerts', null, 120],
+          ['firePerimeters', null, 900],
+          ['volcanoes', null, 86400],
+          ['aurora', null, 300],
+          ['rivers', null, 900],
         ],
       );
 
@@ -188,12 +224,75 @@ describe('api', () => {
       assert.strictEqual(here.timezone, 'America/Los_Angeles');
       assert.strictEqual(here.weather?.temperature, 19.4);
       assert.isTrue(here.weather?.isDay);
-      assert.include(calls[0]?.url.search, 'latitude=34.06&longitude=-118.25');
+      assert.deepStrictEqual(here.airQuality, {
+        time: '2026-11-15T14:00',
+        usAqi: 76,
+        pm25: 14.7,
+        pm10: 18.1,
+        ozone: 74,
+        nitrogenDioxide: 28.2,
+      });
+      assert.strictEqual(calls.length, 2);
+      for (const call of calls) assert.include(call.url.search, 'latitude=34.06&longitude=-118.25');
       assert.strictEqual(
         (yield* get('/api/here?lat=1&lon=2')).headers.get('cache-control'),
         'public, max-age=600',
       );
       assert.strictEqual((yield* get('/api/here?lat=91&lon=0')).status, 400);
+    }),
+  );
+
+  it.effect('still answers with the weather when air quality is unavailable', () =>
+    Effect.gen(function* () {
+      const { client } = yield* setup((call) =>
+        call.url.host === 'air-quality-api.open-meteo.com'
+          ? new Response('busy', { status: 503 })
+          : openMeteo(call),
+      );
+      const here = yield* client.here({ query: { lat: 34.06, lon: -118.25 } });
+      assert.strictEqual(here.weather?.temperature, 19.4);
+      assert.isNull(here.airQuality);
+    }),
+  );
+
+  it.effect('serves each weather and hazard feed from its endpoint', () =>
+    Effect.gen(function* () {
+      const { client, store, get, read } = yield* setup();
+      const endpoints = [
+        ['metars', '/api/feeds/metars', client.feeds.metars()],
+        ['buoys', '/api/feeds/buoys', client.feeds.buoys()],
+        ['airQuality', '/api/feeds/air-quality', client.feeds.airQuality()],
+        ['disasters', '/api/feeds/disasters', client.feeds.disasters()],
+        ['tsunamis', '/api/feeds/tsunamis', client.feeds.tsunamis()],
+        ['weatherAlerts', '/api/feeds/weather-alerts', client.feeds.weatherAlerts()],
+        ['firePerimeters', '/api/feeds/fire-perimeters', client.feeds.firePerimeters()],
+        ['volcanoes', '/api/feeds/volcanoes', client.feeds.volcanoes()],
+        ['aurora', '/api/feeds/aurora', client.feeds.aurora()],
+        ['rivers', '/api/feeds/rivers', client.feeds.rivers()],
+      ] as const;
+      for (const [feed, path, fetchSnapshot] of endpoints) {
+        assert.strictEqual((yield* get(path)).status, 404, `${feed} before its first refresh`);
+        const result = yield* read(feed);
+        const data = updatedData(result);
+        yield* store.begin(feed, 60);
+        const { version } = yield* store.publish(
+          feed,
+          data,
+          result._tag === 'Updated' ? result.count : 0,
+          {},
+        );
+        const snapshot = yield* fetchSnapshot;
+        assert.strictEqual(snapshot.version, version, feed);
+        assert.deepStrictEqual(snapshot.data, data, feed);
+      }
+      assert.strictEqual(
+        (yield* get('/api/feeds/weather-alerts')).headers.get('cache-control'),
+        'public, max-age=20, stale-while-revalidate=60',
+      );
+      assert.strictEqual(
+        (yield* get('/api/feeds/volcanoes')).headers.get('cache-control'),
+        'public, max-age=300, stale-while-revalidate=900',
+      );
     }),
   );
 

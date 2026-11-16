@@ -48,7 +48,93 @@ export const feeds: { readonly [F in FeedId]: FeedInfo } = {
     source: { name: 'RainViewer', url: 'https://www.rainviewer.com', license: 'RainViewer API terms' },
     intervalSeconds: 5 * 60,
   },
+  metars: {
+    title: 'Weather stations',
+    source: {
+      name: 'NOAA Aviation Weather Center',
+      url: 'https://aviationweather.gov',
+      license: 'Public domain',
+    },
+    intervalSeconds: 5 * 60,
+  },
+  buoys: {
+    title: 'Ocean buoys',
+    source: { name: 'NOAA NDBC', url: 'https://www.ndbc.noaa.gov', license: 'Public domain' },
+    intervalSeconds: 10 * 60,
+  },
+  airQuality: {
+    title: 'Air quality sensors',
+    source: {
+      name: 'Sensor.Community',
+      url: 'https://sensor.community',
+      license: 'Database Contents License (DbCL) 1.0 under ODbL',
+    },
+    intervalSeconds: 5 * 60,
+  },
+  disasters: {
+    title: 'Disaster alerts',
+    source: {
+      name: 'GDACS',
+      url: 'https://www.gdacs.org',
+      license: 'GDACS terms of use (EC JRC and UN OCHA), attribution required',
+    },
+    intervalSeconds: 10 * 60,
+  },
+  tsunamis: {
+    title: 'Tsunami bulletins',
+    source: {
+      name: 'NOAA Tsunami Warning Centers',
+      url: 'https://www.tsunami.gov',
+      license: 'Public domain',
+    },
+    intervalSeconds: 2 * 60,
+  },
+  weatherAlerts: {
+    title: 'US weather alerts',
+    source: { name: 'National Weather Service', url: 'https://www.weather.gov', license: 'Public domain' },
+    intervalSeconds: 2 * 60,
+  },
+  firePerimeters: {
+    title: 'Wildfire perimeters',
+    source: {
+      name: 'NIFC WFIGS',
+      url: 'https://data-nifc.opendata.arcgis.com',
+      license: 'Public domain',
+    },
+    intervalSeconds: 15 * 60,
+  },
+  volcanoes: {
+    title: 'Volcanoes',
+    source: {
+      name: 'Smithsonian Global Volcanism Program',
+      url: 'https://volcano.si.edu',
+      license: 'Smithsonian terms of use, attribution required',
+    },
+    intervalSeconds: 24 * 60 * 60,
+  },
+  aurora: {
+    title: 'Aurora forecast',
+    source: {
+      name: 'NOAA Space Weather Prediction Center',
+      url: 'https://www.swpc.noaa.gov',
+      license: 'Public domain',
+    },
+    intervalSeconds: 5 * 60,
+  },
+  rivers: {
+    title: 'River gauges',
+    source: {
+      name: 'NOAA NWPS, Environment Agency, WSV Pegelonline',
+      url: 'https://water.noaa.gov',
+      license: 'Public domain (US), Open Government Licence (UK), DL-DE Zero 2.0 (DE)',
+    },
+    intervalSeconds: 15 * 60,
+  },
 };
+
+/** NIFC's current wildfire perimeters (ArcGIS feature layer); records link to their page on it. */
+export const wfigsPerimeters =
+  'https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Interagency_Perimeters_Current/FeatureServer/0';
 
 /** Where nearby-aircraft queries go, in order: the next is tried when one fails. */
 export const aircraftSources: ReadonlyArray<Source> = [

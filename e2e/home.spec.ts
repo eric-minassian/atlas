@@ -14,11 +14,12 @@ test('the globe renders with the layer panel and live freshness', async ({ page 
   await expect(page.getByRole('heading', { name: 'Atlas' })).toBeVisible();
   await expect(page.getByTestId('globe').locator('canvas')).toBeVisible();
   const layers = page.getByRole('complementary', { name: 'Layers' });
-  // From space: global layers draw; city-scale ones wait in the catalog until you zoom in.
+  // From space: global layers draw; city-scale ones wait in the catalog until you zoom in. Found by
+  // switch, since a layer's name can also be another layer's filter (Earthquakes in Disaster alerts).
   const inView = layers.getByRole('region', { name: 'In view' });
   await Promise.all(
     ['Satellites', 'Clouds', 'Weather radar'].map((name) =>
-      expect(inView.getByText(name, { exact: true })).toBeVisible(),
+      expect(inView.getByRole('switch', { name, exact: true })).toBeVisible(),
     ),
   );
   const all = layers.getByRole('region', { name: 'All layers' });
@@ -65,5 +66,21 @@ test('the API describes every feed', async ({ request }) => {
   const res = await request.get('/api/catalog');
   expect(res.ok()).toBe(true);
   const body = (await res.json()) as { feeds: Array<{ id: string }> };
-  expect(body.feeds.map((f) => f.id)).toEqual(['satellites', 'earthquakes', 'fires', 'events', 'radar']);
+  expect(body.feeds.map((f) => f.id)).toEqual([
+    'satellites',
+    'earthquakes',
+    'fires',
+    'events',
+    'radar',
+    'metars',
+    'buoys',
+    'airQuality',
+    'disasters',
+    'tsunamis',
+    'weatherAlerts',
+    'firePerimeters',
+    'volcanoes',
+    'aurora',
+    'rivers',
+  ]);
 });

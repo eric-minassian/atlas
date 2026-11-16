@@ -1,0 +1,69 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -66.675,
+     7.108
+    ]
+   },
+   "properties": {
+    "eventtype": "DR",
+    "eventid": 1023877,
+    "episodeid": 14,
+    "eventname": "Northern South America, Panama Isthmus-2026",
+    "name": "Drought in Aruba, , Brazil, Colombia, Costa Rica, , French Guiana, Guyana, Panama, Suriname, Venezuela",
+    "alertlevel": "Orange",
+    "iscurrent": "true",
+    "country": "Aruba, , Brazil, Colombia, Costa Rica, , French Guiana, Guyana, Panama, Suriname, Venezuela",
+    "fromdate": "2022-09-21T00:00:00",
+    "todate": "2026-11-13T00:00:00",
+    "url": {
+     "geometry": "https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=DR&eventid=1023877&episodeid=14",
+     "report": "https://www.gdacs.org/report.aspx?eventid=1023877&episodeid=14&eventtype=DR",
+     "details": "https://www.gdacs.org/gdacsapi/api/events/geteventdata?eventtype=DR&eventid=1023877"
+    },
+    "severitydata": {
+     "severity": 1735191.0,
+     "severitytext": "Medium impact for agricultural drought in 1735191 km2",
+     "severityunit": "km2"
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     80.2,
+     15.8
+    ]
+   },
+   "properties": {
+    "eventtype": "TC",
+    "eventid": 1001346,
+    "episodeid": 10,
+    "eventname": "MURASU-26",
+    "name": "Tropical Cyclone MURASU-26",
+    "alertlevel": "Red",
+    "iscurrent": "false",
+    "country": "India",
+    "fromdate": "2026-11-01T00:00:00",
+    "todate": "2026-11-03T06:00:00",
+    "url": {
+     "geometry": "https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=TC&eventid=1001346&episodeid=10",
+     "report": "https://www.gdacs.org/report.aspx?eventid=1001346&episodeid=10&eventtype=TC",
+     "details": "https://www.gdacs.org/gdacsapi/api/events/geteventdata?eventtype=TC&eventid=1001346"
+    },
+    "severitydata": {
+     "severity": 157.4064,
+     "severitytext": "Hurricane/Typhoon > 74 mph (maximum wind speed of 157 km/h)",
+     "severityunit": "km/h"
+    }
+   }
+  }
+ ]
+}

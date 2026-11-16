@@ -5,6 +5,7 @@ import type { Here } from '../../../src/domain.ts';
 import { callApi } from '../client.ts';
 import { useNow } from '../hooks.ts';
 import type { Details, Field, Picture } from '../layers/types.ts';
+import { describeAqi } from '../lib/airquality.ts';
 import { formatInt, formatLatLon, formatNumber } from '../lib/format.ts';
 import { describeWeather } from '../lib/weather.ts';
 import { distance, type Pano } from '../street/providers.ts';
@@ -112,7 +113,10 @@ function EntityInspector({
       <div className="max-h-[calc(100vh-11rem)] overflow-y-auto">
         {details.picture && <PictureView picture={details.picture} />}
         {details.body && (
-          <p className="border-b px-4 py-3 text-[12px] leading-relaxed text-foreground/85">{details.body}</p>
+          // Alerts and warnings come as paragraphs separated by blank lines.
+          <p className="border-b px-4 py-3 text-[12px] leading-relaxed whitespace-pre-line text-foreground/85">
+            {details.body}
+          </p>
         )}
         {details.fields.length > 0 && <Fields fields={details.fields} />}
       </div>
@@ -255,6 +259,21 @@ function PlaceInspector({
         { label: 'Pressure', value: `${formatInt(w.pressure)} hPa` },
       );
     }
+    const air = here.airQuality;
+    if (air) {
+      const micrograms = (value: number | null) => (value === null ? '—' : `${formatNumber(value)} µg/m³`);
+      if (air.usAqi !== null)
+        fields.push({
+          label: 'Air quality',
+          value: `${formatInt(air.usAqi)} US AQI · ${describeAqi(air.usAqi)}`,
+        });
+      fields.push(
+        { label: 'PM2.5', value: micrograms(air.pm25) },
+        { label: 'PM10', value: micrograms(air.pm10) },
+        { label: 'Ozone', value: micrograms(air.ozone) },
+        { label: 'Nitrogen dioxide', value: micrograms(air.nitrogenDioxide) },
+      );
+    }
   }
 
   return (
@@ -281,7 +300,9 @@ function PlaceInspector({
           <Crosshair />
           Zoom in
         </Button>
-        <span className="text-[11px] text-muted-foreground/70">Weather: Open-Meteo</span>
+        <span className="text-[11px] text-muted-foreground/70">
+          Weather: Open-Meteo{typeof here === 'object' && here.airQuality ? ' · Air quality: CAMS' : ''}
+        </span>
       </footer>
     </Panel>
   );
