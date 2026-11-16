@@ -57,6 +57,25 @@ test('the base map switches to Photorealistic 3D and back', async ({ page }) => 
   await expect(basemap.getByRole('radio', { name: 'Satellite' })).toBeChecked();
 });
 
+test('the map controls and keyboard move the camera without errors', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('/');
+  const canvas = page.getByTestId('globe').locator('canvas');
+  await expect(canvas).toBeVisible();
+  await page.getByRole('button', { name: 'Zoom in' }).click();
+  await page.getByRole('button', { name: 'Zoom out' }).click();
+  await page.getByRole('button', { name: 'North up' }).click();
+  // Keys reach the globe when nothing that takes them has focus.
+  await canvas.click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('+');
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('Shift+ArrowRight');
+  await page.keyboard.press('n');
+  await canvas.dispatchEvent('wheel', { deltaY: -100, deltaMode: 0 });
+  expect(errors).toEqual([]);
+});
+
 test('search opens from the keyboard', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByTestId('globe').locator('canvas')).toBeVisible();

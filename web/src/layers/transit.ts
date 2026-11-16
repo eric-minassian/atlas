@@ -15,6 +15,7 @@ import { AreaTiles } from '../data/area.ts';
 import { layerStatus } from '../data/status.ts';
 import type { PickId } from '../globe/globe.ts';
 import { followGround } from '../globe/ground.ts';
+import { type Icon, svgIcon } from '../globe/pixels.ts';
 import { formatAge, formatBearing, formatInt, formatLatLon } from '../lib/format.ts';
 import { advance } from '../lib/motion.ts';
 import type { Details, Filter, LayerDef, LayerHandle, SearchHit } from './types.ts';
@@ -37,14 +38,20 @@ const modeById = new Map(modes.map((m) => [m.id, { ...m, cesium: Color.fromCssCo
 const MAX_EXTRAPOLATION_S = 120;
 
 /** A dot with a notch toward the direction of travel; billboards tint it. */
-const headingIcon = `data:image/svg+xml,${encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">' +
-    '<path d="M10 1.5 14 6.2A6 6 0 1 1 6 6.2Z" fill="#fff" stroke="rgba(0,0,0,0.7)" stroke-width="1.3"/></svg>',
-)}`;
-const dotIcon = `data:image/svg+xml,${encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">' +
-    '<circle cx="8" cy="8" r="5.5" fill="#fff" stroke="rgba(0,0,0,0.7)" stroke-width="1.3"/></svg>',
-)}`;
+const headingIcon = (ratio: number) =>
+  svgIcon(
+    ratio,
+    20,
+    20,
+    '<path d="M10 1.5 14 6.2A6 6 0 1 1 6 6.2Z" fill="#fff" stroke="rgba(0,0,0,0.7)" stroke-width="1.3"/>',
+  );
+const dotIcon = (ratio: number) =>
+  svgIcon(
+    ratio,
+    16,
+    16,
+    '<circle cx="8" cy="8" r="5.5" fill="#fff" stroke="rgba(0,0,0,0.7)" stroke-width="1.3"/>',
+  );
 
 interface Vehicle {
   readonly key: string;
@@ -99,6 +106,8 @@ export const transitLayer: LayerDef = {
   create(globe): LayerHandle {
     const billboards = globe.scene.primitives.add(new BillboardCollection({ scene: globe.scene }));
     const ground = followGround(globe, [billboards]);
+    const pointed = headingIcon(globe.pixelRatio);
+    const dot = dotIcon(globe.pixelRatio);
     let vehicles = new Map<string, { vehicle: Vehicle; billboard: Billboard }>();
     let shown: ReadonlySet<string> = new Set(modes.map((m) => m.id));
     let selected: string | undefined;
@@ -143,7 +152,7 @@ export const transitLayer: LayerDef = {
           const billboard =
             existing?.billboard ??
             billboards.add({
-              image: directional ? headingIcon : dotIcon,
+              ...(directional ? pointed : dot),
               position: positionOf(vehicle, now),
               heightReference: HeightReference.CLAMP_TO_GROUND,
               scaleByDistance: new NearFarScalar(1_000, 1.3, 150_000, 0.5),
@@ -151,8 +160,12 @@ export const transitLayer: LayerDef = {
               id: { layer: 'transit', key: vehicle.key } satisfies PickId,
             });
           // Setting an image reloads it, even the same one.
-          if (existing && (existing.vehicle.bearing !== null) !== directional)
-            billboard.image = directional ? headingIcon : dotIcon;
+          if (existing && (existing.vehicle.bearing !== null) !== directional) {
+            const icon: Icon = directional ? pointed : dot;
+            billboard.image = icon.image;
+            billboard.width = icon.width;
+            billboard.height = icon.height;
+          }
           billboard.rotation = directional ? -CesiumMath.toRadians(vehicle.bearing ?? 0) : 0;
           billboard.position = positionOf(vehicle, now, scratch, billboard);
           next.set(vehicle.key, { vehicle, billboard });

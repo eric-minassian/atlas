@@ -12,6 +12,13 @@ export interface EntityRef {
   readonly key: string;
 }
 
+/** What the pointer rests on, and where (client coordinates). */
+export interface Hover {
+  readonly title: string;
+  readonly x: number;
+  readonly y: number;
+}
+
 /**
  * Why a switched-on layer isn't drawing, or that it is. The panel shows the
  * reason next to the layer.
@@ -175,13 +182,19 @@ export class World {
     return layerById.get(id)?.title ?? id;
   }
 
-  onPointer(onPick: (pick: Pick) => void, onHover: (pick: Pick) => void): void {
-    this.globe.onPointer(
-      (pick) => {
-        if (!this.street.isOpen) onPick(pick);
-      },
-      (pick) => onHover(this.street.isOpen ? { kind: 'none' } : pick),
-    );
+  /** Calls `onPick` for clicks on the globe (not inside a panorama); returns the unsubscribe. */
+  onPick(onPick: (pick: Pick) => void): () => void {
+    return this.globe.clicked.add((pick) => {
+      if (!this.street.isOpen) onPick(pick);
+    });
+  }
+
+  /** Calls `onHover` with the title of what the pointer rests on (client coordinates), or undefined. */
+  onHover(onHover: (hover: Hover | undefined) => void): () => void {
+    return this.globe.hovered.add(({ pick, x, y }) => {
+      const title = pick.kind === 'entity' && !this.street.isOpen ? this.details(pick)?.title : undefined;
+      onHover(title ? { title, x, y } : undefined);
+    });
   }
 
   destroy(): void {

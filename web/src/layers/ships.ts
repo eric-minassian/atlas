@@ -13,6 +13,7 @@ import type { ShipData } from '../../../src/domain.ts';
 import { feedPoller, type Snapshot } from '../data/feeds.ts';
 import type { PickId } from '../globe/globe.ts';
 import { trackGround } from '../globe/ground.ts';
+import { svgIcon } from '../globe/pixels.ts';
 import { flagOf, navStatusLabel, type ShipCategory, shipCategoryOf, shipTypeLabel } from '../lib/ais.ts';
 import { formatAge, formatBearing, formatInt, formatLatLon, formatNumber } from '../lib/format.ts';
 import { advance, KNOT } from '../lib/motion.ts';
@@ -36,15 +37,21 @@ const MAX_EXTRAPOLATION_S = 15 * 60;
 const ANIMATE_BELOW = 2_000_000;
 
 /** A hull seen from above, bow up; billboards tint it. */
-const hullIcon = `data:image/svg+xml,${encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="32" viewBox="0 0 20 32">' +
-    '<path d="M10 1.5C13.5 5.5 16 10 16 15v14.5H4V15c0-5 2.5-9.5 6-13.5Z" fill="#fff" stroke="rgba(0,0,0,0.7)" stroke-width="1.5"/></svg>',
-)}`;
+const hullIcon = (ratio: number) =>
+  svgIcon(
+    ratio,
+    20,
+    32,
+    '<path d="M10 1.5C13.5 5.5 16 10 16 15v14.5H4V15c0-5 2.5-9.5 6-13.5Z" fill="#fff" stroke="rgba(0,0,0,0.7)" stroke-width="1.5"/>',
+  );
 /** A vessel with no heading or course to point along. */
-const stillIcon = `data:image/svg+xml,${encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">' +
-    '<circle cx="8" cy="8" r="5.5" fill="#fff" stroke="rgba(0,0,0,0.7)" stroke-width="1.5"/></svg>',
-)}`;
+const stillIcon = (ratio: number) =>
+  svgIcon(
+    ratio,
+    16,
+    16,
+    '<circle cx="8" cy="8" r="5.5" fill="#fff" stroke="rgba(0,0,0,0.7)" stroke-width="1.5"/>',
+  );
 
 /** Larger vessels draw larger, within limits that keep small craft visible and tankers from covering a port. */
 const scaleOf = (length: number) => (length > 0 ? 0.45 + Math.min(1, length / 300) * 0.5 : 0.55);
@@ -81,6 +88,8 @@ export const shipLayer: LayerDef = {
   create(globe): LayerHandle {
     worldwide = globe.config.sources.aisstream;
     const billboards = globe.scene.primitives.add(new BillboardCollection({ scene: globe.scene }));
+    const hull = hullIcon(globe.pixelRatio);
+    const still = stillIcon(globe.pixelRatio);
     let data: ShipData | undefined;
     let items: Billboard[] = [];
     let byMmsi = new Map<number, number>();
@@ -163,7 +172,7 @@ export const shipLayer: LayerDef = {
         const direction = (isMoving(i) ? data.course[i] : null) ?? data.heading[i] ?? data.course[i] ?? null;
         items.push(
           billboards.add({
-            image: direction === null ? stillIcon : hullIcon,
+            ...(direction === null ? still : hull),
             position: positionOf(i, now, scratch),
             rotation: direction === null ? 0 : -CesiumMath.toRadians(direction),
             alignedAxis: direction === null ? Cartesian3.ZERO : Cartesian3.UNIT_Z,

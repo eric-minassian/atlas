@@ -12,6 +12,7 @@ import {
   Transforms,
 } from 'cesium';
 import type { Globe } from '../globe/globe.ts';
+import { WheelClassifier } from '../globe/wheel.ts';
 import { Listeners } from '../lib/listeners.ts';
 import { bearing, type Neighbor, type Pano, type ProviderId, type StreetProvider } from './providers.ts';
 
@@ -82,7 +83,7 @@ export class PanoramaViewer {
   private current: PanoramaState | undefined;
   private primitive: EquirectangularPanorama | undefined;
   private restore: (() => void) | undefined;
-  private handler: ScreenSpaceEventHandler | undefined;
+  private stopControls: (() => void) | undefined;
   private abort: AbortController | undefined;
   /**
    * Ground height where the viewer entered, meters. Measured before the globe
@@ -187,8 +188,8 @@ export class PanoramaViewer {
   close(): void {
     this.abort?.abort();
     this.abort = undefined;
-    this.handler?.destroy();
-    this.handler = undefined;
+    this.stopControls?.();
+    this.stopControls = undefined;
     if (this.primitive) this.globe.scene.primitives.remove(this.primitive);
     this.primitive = undefined;
     this.restore?.();
@@ -228,7 +229,7 @@ export class PanoramaViewer {
     const controller = scene.screenSpaceCameraController;
     controller.enableInputs = false;
     if (camera.frustum instanceof PerspectiveFrustum) camera.frustum.fov = START_FOV;
-    this.handler = this.controls();
+    this.stopControls = this.controls();
     this.restore = () => {
       unisolate();
       controller.enableInputs = true;
@@ -263,11 +264,34 @@ export class PanoramaViewer {
     });
   }
 
-  /** Drag to look, wheel to zoom, click to walk toward where you clicked. */
-  private controls(): ScreenSpaceEventHandler {
+  /**
+   * Drag (or scroll a trackpad) to look, wheel or pinch to zoom, click to walk
+   * toward where you clicked. Returns the teardown.
+   */
+  private controls(): () => void {
     const { scene } = this.globe;
     const camera = scene.camera;
     const handler = new ScreenSpaceEventHandler(scene.canvas);
+    const perPixel = () =>
+      (camera.frustum instanceof PerspectiveFrustum ? (camera.frustum.fov ?? START_FOV) : START_FOV) /
+      Math.max(scene.canvas.clientWidth, scene.canvas.clientHeight);
+    const look = (dHeading: number, dPitch: number) =>
+      camera.setView({
+        orientation: {
+          heading: camera.heading + dHeading,
+          pitch: CesiumMath.clamp(camera.pitch + dPitch, -1.45, 1.45),
+          roll: 0,
+        },
+      });
+    /** Narrows the view by e^`amount` (positive zooms in). */
+    const zoom = (amount: number) => {
+      if (!(camera.frustum instanceof PerspectiveFrustum)) return;
+      camera.frustum.fov = CesiumMath.clamp(
+        (camera.frustum.fov ?? START_FOV) * Math.exp(-amount),
+        MIN_FOV,
+        MAX_FOV,
+      );
+    };
     let dragging: { x: number; y: number; moved: boolean } | undefined;
     handler.setInputAction((event: { position: Cartesian2 }) => {
       dragging = { x: event.position.x, y: event.position.y, moved: false };
@@ -280,15 +304,7 @@ export class PanoramaViewer {
       dragging.x = event.endPosition.x;
       dragging.y = event.endPosition.y;
       // The image follows the pointer, as if grabbing it.
-      const perPixel =
-        (camera.frustum.fov ?? START_FOV) / Math.max(scene.canvas.clientWidth, scene.canvas.clientHeight);
-      camera.setView({
-        orientation: {
-          heading: camera.heading - dx * perPixel,
-          pitch: CesiumMath.clamp(camera.pitch + dy * perPixel, -1.45, 1.45),
-          roll: 0,
-        },
-      });
+      look(-dx * perPixel(), dy * perPixel());
     }, ScreenSpaceEventType.MOUSE_MOVE);
     handler.setInputAction((event: { position: Cartesian2 }) => {
       const click = dragging && !dragging.moved;
@@ -303,15 +319,33 @@ export class PanoramaViewer {
       const local = Matrix4.multiplyByPointAsVector(enu, ray.direction, new Cartesian3());
       this.step(((Math.atan2(local.x, local.y) * 180) / Math.PI + 360) % 360);
     }, ScreenSpaceEventType.LEFT_UP);
-    handler.setInputAction((delta: number) => {
-      if (!(camera.frustum instanceof PerspectiveFrustum)) return;
-      camera.frustum.fov = CesiumMath.clamp(
-        (camera.frustum.fov ?? START_FOV) * (1 - delta * 0.0008),
-        MIN_FOV,
-        MAX_FOV,
-      );
-    }, ScreenSpaceEventType.WHEEL);
-    return handler;
+    // The globe's navigator keeps the page from scrolling or zooming; the panorama reads the wheel itself.
+    const classifier = new WheelClassifier();
+    const onWheel = (event: WheelEvent) => {
+      const intent = classifier.classify(event);
+      if (!intent) return;
+      if (intent.kind === 'zoom') zoom(intent.amount * 0.1);
+      else if (intent.kind === 'pinch') zoom(intent.amount);
+      // A trackpad scroll moves the image the way the fingers go, like a drag.
+      else look(intent.dx * perPixel(), -intent.dy * perPixel());
+    };
+    // Safari's trackpad pinch.
+    let scale = 1;
+    const onGesture = (event: Event) => {
+      const next = (event as Event & { scale?: number }).scale ?? 1;
+      if (event.type === 'gesturestart') scale = 1;
+      else if (event.type === 'gesturechange') zoom(Math.log(next / scale));
+      scale = next;
+    };
+    const canvas = scene.canvas;
+    canvas.addEventListener('wheel', onWheel, { passive: true });
+    for (const type of ['gesturestart', 'gesturechange'] as const) canvas.addEventListener(type, onGesture);
+    return () => {
+      handler.destroy();
+      canvas.removeEventListener('wheel', onWheel);
+      for (const type of ['gesturestart', 'gesturechange'] as const)
+        canvas.removeEventListener(type, onGesture);
+    };
   }
 
   destroy(): void {

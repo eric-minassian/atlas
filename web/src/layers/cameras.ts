@@ -6,7 +6,7 @@ import { AreaTiles } from '../data/area.ts';
 import { feedPoller, type Snapshot } from '../data/feeds.ts';
 import { formatAge, formatLatLon } from '../lib/format.ts';
 import { Listeners } from '../lib/listeners.ts';
-import { around, cameraIcon, GroundPins, matching } from './pins.ts';
+import { around, GroundPins, matching } from './pins.ts';
 import type { Details, Filter, LayerDef, LayerHandle, SearchHit } from './types.ts';
 
 const kinds: ReadonlyArray<Filter> = [
@@ -60,7 +60,7 @@ export const cameraLayer: LayerDef = {
       lon: data.lon[i] as number,
       lat: data.lat[i] as number,
       color: trafficColor,
-      image: cameraIcon,
+      icon: 'camera',
       size: 18,
       reach,
     }));
@@ -68,7 +68,7 @@ export const cameraLayer: LayerDef = {
       lon: w.lon,
       lat: w.lat,
       color: webcamColor,
-      image: cameraIcon,
+      icon: 'camera',
       size: 18,
       reach,
     }));
