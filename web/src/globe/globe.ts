@@ -3,10 +3,11 @@ import {
   ArcGisMapServerImageryProvider,
   ArcGisMapService,
   buildModuleUrl,
+  CameraEventType,
   Cartesian2,
   Cartesian3,
   Cartographic,
-  Cesium3DTileset,
+  type Cesium3DTileset,
   CesiumWidget,
   ClockStep,
   Color,
@@ -16,10 +17,10 @@ import {
   defined,
   DirectionalLight,
   EllipsoidTerrainProvider,
-  HeadingPitchRange,
   ImageryLayer,
   Ion,
   JulianDate,
+  KeyboardEventModifier,
   Math as CesiumMath,
   Matrix4,
   Rectangle,
@@ -36,6 +37,8 @@ import {
 import type { Bounds } from '../../../src/area.ts';
 import type { ClientConfig } from '../../../src/domain.ts';
 import { Listeners } from '../lib/listeners.ts';
+import { Navigator } from './navigation.ts';
+import { choosePixelRatio } from './pixels.ts';
 
 /** What a click or hover landed on: something a layer drew, a point on Earth, or space. */
 export type Pick =
@@ -95,22 +98,6 @@ const ESRI_FROM_LEVEL = 11;
 /** The NASA reference overlay (borders, coarse labels) gives way to the vector labels below this level. */
 const REFERENCE_UNTIL_LEVEL = 9;
 
-/** Where the camera starts tilting toward the horizon, and how far it's tilted at street level. */
-const TILT_FROM = 12_000;
-const TILT_TO = 400;
-const STREET_PITCH = CesiumMath.toRadians(-28);
-/** Each wheel step covers this share of the way to the target pitch. */
-const TILT_EASE = 0.3;
-
-/** The pitch that suits a camera height: straight down above `TILT_FROM`, tilted near the ground. */
-export const pitchFor = (height: number): number => {
-  if (height >= TILT_FROM) return -CesiumMath.PI_OVER_TWO;
-  // Logarithmic in height: each halving of the distance tilts by about as much.
-  const t = Math.min(1, Math.log(TILT_FROM / Math.max(TILT_TO, height)) / Math.log(TILT_FROM / TILT_TO));
-  const eased = t * t * (3 - 2 * t);
-  return -CesiumMath.PI_OVER_TWO + (STREET_PITCH + CesiumMath.PI_OVER_TWO) * eased;
-};
-
 /**
  * Ground heights outside these (meters above the ellipsoid) come from terrain
  * loaded only coarsely, whose triangles can sit kilometers off the surface far
@@ -135,38 +122,12 @@ export const horizonDistance = (height: number): number => {
   );
 };
 
-/** The horizon has to move this much (as a share) before every marker is updated. */
-const HORIZON_SLACK = 0.25;
-/** Markers that layers add later get the current setting on this cadence. */
-const MARKER_SWEEP_MS = 2_000;
-
-interface Depthable {
-  disableDepthTestDistance: number;
-}
-interface Collection {
-  readonly length: number;
-  get(index: number): unknown;
-}
-
-const isCollection = (value: unknown): value is Collection =>
-  typeof value === 'object' &&
-  value !== null &&
-  typeof (value as Collection).get === 'function' &&
-  typeof (value as Collection).length === 'number';
-
-/**
- * Sets `distance` as the depth-test distance of every point, billboard and
- * label in the scene, walking nested collections. Cesium compares before
- * marking anything dirty, so a sweep where nothing changed costs a loop.
- */
-const setDepthTestDistance = (collection: Collection, distance: number): void => {
-  for (let i = 0; i < collection.length; i++) {
-    const item = collection.get(i);
-    if (isCollection(item) && !(item instanceof Cesium3DTileset)) setDepthTestDistance(item, distance);
-    else if (typeof item === 'object' && item !== null && 'disableDepthTestDistance' in item)
-      (item as Depthable).disableDepthTestDistance = distance;
-  }
-};
+/** With nothing moving or loading for this long, the globe draws at `IDLE_FRAME_RATE`. */
+const IDLE_AFTER_MS = 1500;
+const IDLE_FRAME_RATE = 30;
+/** Hover picks wait this long after the camera last moved: a pick stalls the GPU, and nothing holds still yet. */
+const HOVER_SETTLE_MS = 120;
+const HOVER_INTERVAL_MS = 80;
 
 /** Below this camera height, 3D models are lit from the viewer rather than the Sun. */
 const VIEWER_LIGHT_BELOW = 200_000;
@@ -183,6 +144,16 @@ export class Globe {
   /** Fires when the camera stops moving: load data for the new view here. */
   readonly viewSettled = new Listeners<View>();
   readonly basemapChanged = new Listeners<Basemap>();
+  /** A click on the globe, and what's under the pointer as it moves (client coordinates). */
+  readonly clicked = new Listeners<Pick>();
+  readonly hovered = new Listeners<{ readonly pick: Pick; readonly x: number; readonly y: number }>();
+  /**
+   * Drawing-buffer pixels per CSS pixel, fixed for the page. Cesium sizes
+   * what it draws in CSS pixels at any density; billboard images are
+   * rasterized at this one (`svgIcon`) so they aren't upscaled.
+   */
+  readonly pixelRatio: number;
+  readonly navigation: Navigator;
   private currentView: View = { height: Number.POSITIVE_INFINITY, bounds: undefined, center: undefined };
   private currentBasemap: Basemap = 'satellite';
   private readonly day: ImageryLayer;
@@ -196,20 +167,32 @@ export class Globe {
   private readonly handler: ScreenSpaceEventHandler;
   private following: (() => Cartesian3 | undefined) | undefined;
   private readonly cleanup: Array<() => void> = [];
+  /** `performance.now()` when the camera last moved, and when the viewer last did anything. */
+  private lastMotion = performance.now();
+  private lastActivity = performance.now();
+  private tilesLoading = true;
+  private pointer: { readonly x: number; readonly y: number } | undefined;
+  private pressed = false;
+  private hoverTimer: ReturnType<typeof setTimeout> | undefined;
+  private lastHover = 0;
 
   constructor(container: HTMLElement, config: ClientConfig, creditContainer: HTMLElement) {
     this.config = config;
     if (config.keys.cesiumIon) Ion.defaultAccessToken = config.keys.cesiumIon;
+    this.pixelRatio = choosePixelRatio(window.devicePixelRatio || 1, screen.width, screen.height);
     this.widget = new CesiumWidget(container, {
       baseLayer: false,
       terrainProvider: new EllipsoidTerrainProvider(),
       scene3DOnly: true,
-      msaaSamples: 4,
+      // At high density each pixel is small enough that 2 samples smooth edges as well as 4 do at 1×.
+      msaaSamples: this.pixelRatio >= 1.5 ? 2 : 4,
+      useBrowserRecommendedResolution: false,
       creditContainer,
     });
     this.scene = this.widget.scene;
     const { scene } = this;
     const globe = scene.globe;
+    this.keepPixelRatio();
 
     globe.baseColor = Color.fromCssColorString('#0b1422');
     globe.enableLighting = true;
@@ -237,7 +220,26 @@ export class Globe {
     const controller = scene.screenSpaceCameraController;
     // Stop a little above the ground (or a roof) rather than at it.
     controller.minimumZoomDistance = 2;
+    // As far out as `Navigator` zooms (touch pinch is Cesium's).
+    controller.maximumZoomDistance = 70_000_000;
     controller.enableCollisionDetection = true;
+    // Cesium keeps dragging (pan) and touch. The wheel and trackpad are `Navigator`'s. Right-drag,
+    // and drag with shift, option or ctrl, orbit the center of the screen (heading and tilt), as on
+    // most maps; Cesium's own right-drag zoom and shift-drag free look would surprise.
+    controller.zoomEventTypes = [CameraEventType.PINCH];
+    controller.tiltEventTypes = [
+      CameraEventType.MIDDLE_DRAG,
+      CameraEventType.RIGHT_DRAG,
+      CameraEventType.PINCH,
+      { eventType: CameraEventType.LEFT_DRAG, modifier: KeyboardEventModifier.CTRL },
+      { eventType: CameraEventType.LEFT_DRAG, modifier: KeyboardEventModifier.SHIFT },
+      { eventType: CameraEventType.LEFT_DRAG, modifier: KeyboardEventModifier.ALT },
+      { eventType: CameraEventType.RIGHT_DRAG, modifier: KeyboardEventModifier.CTRL },
+    ];
+    controller.lookEventTypes = undefined;
+    // Data for a new view loads once the camera has held still this long (Cesium waits 500 ms; the
+    // setting is public at runtime but missing from Cesium's typings).
+    (scene as Scene & { cameraEventWaitTime: number }).cameraEventWaitTime = 300;
 
     // Natural Earth (bundled with Cesium, geographic) under everything: the GIBS layers are
     // Web Mercator, which stops at 85°, so this is what shows at the poles.
@@ -318,23 +320,6 @@ export class Globe {
       }),
     );
 
-    // Occlusion. Cesium's default skips depth-testing points against terrain (so the ground they
-    // sit on doesn't clip them) and hides what's behind the Earth with a plane at the horizon, which
-    // fails near the ground over real terrain: satellites and far-off markers showed through the
-    // Earth from street level. Instead, terrain occludes, and everything nearer than the horizon
-    // skips the test: nothing nearer than the horizon can be behind the Earth.
-    globe.depthTestAgainstTerrain = true;
-    let horizon = 0;
-    const keepHorizon = () => {
-      const reach = horizonDistance(camera.positionCartographic.height);
-      // Rewrites every marker's depth setting, so only when the horizon moved appreciably.
-      if (Math.abs(reach - horizon) / Math.max(horizon, 1) < HORIZON_SLACK) return;
-      horizon = reach;
-      setDepthTestDistance(scene.primitives, reach);
-    };
-    const horizonTimer = setInterval(() => setDepthTestDistance(scene.primitives, horizon), MARKER_SWEEP_MS);
-    this.cleanup.push(() => clearInterval(horizonTimer));
-
     camera.percentageChanged = 0.02;
     this.cleanup.push(
       camera.changed.addEventListener(() => {
@@ -343,53 +328,161 @@ export class Globe {
       }),
       camera.moveEnd.addEventListener(() => {
         this.currentView = this.measureView();
-        keepHorizon();
         this.viewSettled.emit(this.currentView);
+        // The view moved under a resting pointer: what it's over has changed.
+        this.scheduleHover();
       }),
       scene.preRender.addEventListener(() => this.updateFollow()),
     );
     this.currentView = this.measureView();
-    keepHorizon();
+
+    this.navigation = new Navigator(this);
+    this.cleanup.push(() => this.navigation.destroy());
+
+    // Occlusion. Cesium's default skips depth-testing points against terrain (so the ground they
+    // sit on doesn't clip them) and hides what's behind the Earth with a plane at the horizon, which
+    // fails near the ground over real terrain: satellites and far-off markers showed through the
+    // Earth from street level. Instead, terrain occludes, and everything nearer than the horizon
+    // skips the test: nothing nearer than the horizon can be behind the Earth. The distance is the
+    // scene's default for every point, billboard and label, set each frame after the camera has
+    // moved (so a fast zoom never draws the far side through the Earth).
+    globe.depthTestAgainstTerrain = true;
+    this.cleanup.push(
+      scene.preRender.addEventListener(() => {
+        scene.minimumDisableDepthTestDistance = horizonDistance(camera.positionCartographic.height);
+      }),
+    );
 
     this.handler = new ScreenSpaceEventHandler(scene.canvas);
-
-    // Tilt toward the horizon as the wheel zooms in near the ground, and back to looking down as it
-    // zooms out: straight down, a city is a map; tilted, buildings and terrain read as 3D.
-    let pending: number | undefined;
-    const onWheel = (event: WheelEvent) => {
-      const direction = Math.sign(event.deltaY);
-      if (direction === 0 || pending !== undefined) return;
-      // After Cesium has applied the zoom, so the height is the new one.
-      pending = requestAnimationFrame(() => {
-        pending = undefined;
-        this.tiltForHeight(direction < 0 ? 'in' : 'out');
-      });
-    };
-    scene.canvas.addEventListener('wheel', onWheel, { passive: true });
-    this.cleanup.push(() => scene.canvas.removeEventListener('wheel', onWheel));
+    this.listenForPointer();
+    this.throttleWhenIdle();
   }
 
   /**
-   * Eases the camera's pitch toward the one that suits its height, pivoting
-   * on the point at the center of the screen so that stays put. Only moves in
-   * the direction of the zoom, so a tilt the viewer chose isn't undone.
+   * Keeps the drawing buffer at `pixelRatio` (Cesium multiplies its
+   * resolution scale by the window's density, which changes when the window
+   * moves to another screen).
    */
-  private tiltForHeight(zoom: 'in' | 'out'): void {
-    if (this.isolated || this.following) return;
+  private keepPixelRatio(): void {
+    let query: MediaQueryList | undefined;
+    const apply = () => {
+      const density = window.devicePixelRatio || 1;
+      this.widget.resolutionScale = this.pixelRatio / density;
+      query?.removeEventListener('change', apply);
+      query = window.matchMedia(`(resolution: ${density}dppx)`);
+      query.addEventListener('change', apply);
+    };
+    apply();
+    this.cleanup.push(() => query?.removeEventListener('change', apply));
+  }
+
+  /**
+   * Draws at full rate while anything moves, loads or is being used, and at
+   * `IDLE_FRAME_RATE` otherwise: a still globe at 120 Hz only spends the
+   * battery. Input wakes it before its next frame.
+   */
+  private throttleWhenIdle(): void {
     const { scene } = this;
     const camera = scene.camera;
-    const height = camera.positionCartographic.height;
-    const target = pitchFor(height);
-    const pitch = camera.pitch;
-    const wants = zoom === 'in' ? pitch < target - 0.01 : pitch > target + 0.01;
-    if (!wants) return;
-    const canvas = scene.canvas;
-    const pivot = this.surfaceAt(new Cartesian2(canvas.clientWidth / 2, canvas.clientHeight / 2));
-    if (!pivot) return;
-    const next = pitch + (target - pitch) * TILT_EASE;
-    const range = Cartesian3.distance(camera.positionWC, pivot);
-    camera.lookAt(pivot, new HeadingPitchRange(camera.heading, next, range));
-    camera.lookAtTransform(Matrix4.IDENTITY);
+    // Undefined means every frame; Cesium's typings only allow a number.
+    const widget = this.widget as { targetFrameRate: number | undefined };
+    const lastView = new Matrix4();
+    const wake = () => {
+      this.lastActivity = performance.now();
+      if (widget.targetFrameRate !== undefined) widget.targetFrameRate = undefined;
+    };
+    // Pointer moves only over the globe: hovering the panels changes nothing drawn.
+    const events = ['pointerdown', 'wheel', 'keydown', 'touchstart'] as const;
+    for (const type of events) window.addEventListener(type, wake, { capture: true, passive: true });
+    scene.canvas.addEventListener('pointermove', wake, { passive: true });
+    this.cleanup.push(
+      () => {
+        for (const type of events) window.removeEventListener(type, wake, { capture: true });
+        scene.canvas.removeEventListener('pointermove', wake);
+      },
+      scene.globe.tileLoadProgressEvent.addEventListener((queued: number) => {
+        this.tilesLoading = queued > 0;
+      }),
+      scene.postRender.addEventListener(() => {
+        const now = performance.now();
+        if (!Matrix4.equals(camera.viewMatrix, lastView)) {
+          Matrix4.clone(camera.viewMatrix, lastView);
+          this.lastMotion = now;
+        }
+        const loading =
+          (this.tilesLoading && scene.globe.show) ||
+          (this.photoreal?.show === true && !this.photoreal.tilesLoaded);
+        const idle =
+          !loading &&
+          !this.navigation.busy &&
+          now - Math.max(this.lastMotion, this.lastActivity, this.navigation.lastInput) > IDLE_AFTER_MS;
+        const target = idle ? IDLE_FRAME_RATE : undefined;
+        if (widget.targetFrameRate !== target) widget.targetFrameRate = target;
+      }),
+    );
+  }
+
+  /**
+   * Clicks pick right away. Hover picks wait for the pointer to rest over a
+   * still globe: each one renders the scene again and stalls the GPU, which
+   * during a drag or zoom costs frames, and what's under the pointer is
+   * changing anyway. When the view settles, the pointer is picked again.
+   */
+  private listenForPointer(): void {
+    const canvas = this.scene.canvas;
+    this.handler.setInputAction(
+      (event: { position: Cartesian2 }) => this.clicked.emit(this.pickAt(event.position)),
+      ScreenSpaceEventType.LEFT_CLICK,
+    );
+    this.handler.setInputAction((event: { endPosition: Cartesian2 }) => {
+      this.pointer = { x: event.endPosition.x, y: event.endPosition.y };
+      this.scheduleHover();
+    }, ScreenSpaceEventType.MOUSE_MOVE);
+    const press = (event: PointerEvent) => {
+      this.pressed = event.buttons !== 0;
+      // A drag that held still before letting go has already settled: look again now it's released.
+      if (!this.pressed) this.scheduleHover();
+    };
+    const leave = () => {
+      this.pointer = undefined;
+      clearTimeout(this.hoverTimer);
+      this.hovered.emit({ pick: { kind: 'none' }, x: 0, y: 0 });
+    };
+    canvas.addEventListener('pointerdown', press);
+    window.addEventListener('pointerup', press);
+    canvas.addEventListener('pointerleave', leave);
+    this.cleanup.push(() => {
+      clearTimeout(this.hoverTimer);
+      canvas.removeEventListener('pointerdown', press);
+      window.removeEventListener('pointerup', press);
+      canvas.removeEventListener('pointerleave', leave);
+    });
+  }
+
+  private scheduleHover(): void {
+    clearTimeout(this.hoverTimer);
+    const pointer = this.pointer;
+    if (!pointer) return;
+    const canvas = this.scene.canvas;
+    const now = performance.now();
+    const wait = Math.max(
+      this.lastHover + HOVER_INTERVAL_MS - now,
+      this.lastMotion + HOVER_SETTLE_MS - now,
+      this.navigation.lastInput + HOVER_SETTLE_MS - now,
+      0,
+    );
+    this.hoverTimer = setTimeout(() => {
+      if (this.pressed || this.navigation.busy || this.isolated) return;
+      // Still moving: try again once it holds still (moveEnd also re-schedules).
+      if (performance.now() - this.lastMotion < HOVER_SETTLE_MS) {
+        this.scheduleHover();
+        return;
+      }
+      this.lastHover = performance.now();
+      const rect = canvas.getBoundingClientRect();
+      const pick = this.pickAt(new Cartesian2(pointer.x, pointer.y), false);
+      this.hovered.emit({ pick, x: rect.left + pointer.x, y: rect.top + pointer.y });
+    }, wait);
   }
 
   /** Current simulation time, epoch ms. Live by default. */
@@ -535,21 +628,6 @@ export class Globe {
     return () => this.pickers.delete(picker);
   }
 
-  /** Calls `onPick` for clicks, and `onHover` (throttled) as the pointer moves. */
-  onPointer(onPick: (pick: Pick) => void, onHover: (pick: Pick) => void): void {
-    this.handler.setInputAction(
-      (event: { position: Cartesian2 }) => onPick(this.pickAt(event.position)),
-      ScreenSpaceEventType.LEFT_CLICK,
-    );
-    let last = 0;
-    this.handler.setInputAction((event: { endPosition: Cartesian2 }) => {
-      const now = performance.now();
-      if (now - last < 80) return;
-      last = now;
-      onHover(this.pickAt(event.endPosition, false));
-    }, ScreenSpaceEventType.MOUSE_MOVE);
-  }
-
   pickAt(position: Cartesian2, includePlaces = true): Pick {
     const picked: unknown = this.scene.pick(position, 4, 4);
     if (defined(picked)) {
@@ -620,6 +698,11 @@ export class Globe {
 
   get isFollowing(): boolean {
     return this.following !== undefined;
+  }
+
+  /** A panorama has the scene to itself. */
+  get isIsolated(): boolean {
+    return this.isolated;
   }
 
   private updateFollow() {

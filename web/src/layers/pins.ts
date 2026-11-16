@@ -15,21 +15,29 @@ import {
 import { type Bounds, contains } from '../../../src/area.ts';
 import type { Globe, PickId } from '../globe/globe.ts';
 import { followGround, type GroundFollower } from '../globe/ground.ts';
+import { svgIcon } from '../globe/pixels.ts';
 import { Listeners } from '../lib/listeners.ts';
 
-/** A white disc with a dark rim; billboards tint it. */
-export const dotIcon = `data:image/svg+xml,${encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">' +
-    '<circle cx="8" cy="8" r="5.5" fill="#fff" stroke="rgba(0,0,0,0.7)" stroke-width="2"/></svg>',
-)}`;
-
-/** A camera body and lens on a dark disc, white so billboards can tint it. */
-export const cameraIcon = `data:image/svg+xml,${encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">' +
-    '<circle cx="12" cy="12" r="11" fill="rgba(10,14,20,0.78)"/>' +
-    '<rect x="5" y="8.5" width="10" height="7" rx="1.6" fill="#fff"/>' +
-    '<path d="M15.5 11.2 19 9v6l-3.5-2.2Z" fill="#fff"/></svg>',
-)}`;
+/** Pin icons, white so billboards can tint them: a disc with a dark rim, and a camera on a dark disc. */
+export type PinIcon = 'dot' | 'camera';
+const icons: Record<PinIcon, (ratio: number) => string> = {
+  dot: (ratio) =>
+    svgIcon(
+      ratio,
+      16,
+      16,
+      '<circle cx="8" cy="8" r="5.5" fill="#fff" stroke="rgba(0,0,0,0.7)" stroke-width="2"/>',
+    ).image,
+  camera: (ratio) =>
+    svgIcon(
+      ratio,
+      24,
+      24,
+      '<circle cx="12" cy="12" r="11" fill="rgba(10,14,20,0.78)"/>' +
+        '<rect x="5" y="8.5" width="10" height="7" rx="1.6" fill="#fff"/>' +
+        '<path d="M15.5 11.2 19 9v6l-3.5-2.2Z" fill="#fff"/>',
+    ).image,
+};
 
 /** Labels that rank lower show only nearer the camera: `[rank below, meters]`, most significant first. */
 export type Tiers = ReadonlyArray<readonly [rank: number, meters: number]>;
@@ -51,8 +59,8 @@ export interface PinStyle {
   readonly lon: number;
   readonly lat: number;
   readonly color: Color;
-  readonly image?: string;
-  /** Pixel size of the icon at `scale` 1. */
+  readonly icon?: PinIcon;
+  /** CSS pixel size of the icon at `scale` 1. */
   readonly size?: number;
   readonly reach?: DistanceDisplayCondition | undefined;
   readonly label?: { readonly text: string; readonly reach: DistanceDisplayCondition | undefined };
@@ -83,6 +91,8 @@ export class GroundPins<T> {
   private readonly ground: GroundFollower;
   private readonly entries = new Map<string, Entry<T>>();
   private selected: string | undefined;
+  /** Drawn at a pin's `size`, rasterized at the screen's density. */
+  private readonly images: Record<PinIcon, string>;
 
   constructor(
     private readonly globe: Globe,
@@ -92,6 +102,7 @@ export class GroundPins<T> {
     this.billboards = globe.scene.primitives.add(new BillboardCollection({ scene: globe.scene }));
     this.labels = globe.scene.primitives.add(new LabelCollection({ scene: globe.scene }));
     this.ground = followGround(globe, [this.billboards, this.labels]);
+    this.images = { dot: icons.dot(globe.pixelRatio), camera: icons.camera(globe.pixelRatio) };
   }
 
   /** Replaces the items, keeping the markers of keys that stay. */
@@ -125,11 +136,12 @@ export class GroundPins<T> {
     const position = Cartesian3.fromDegrees(s.lon, s.lat);
     const id = { layer: this.layer, key } satisfies PickId;
     const selected = key === this.selected;
+    const size = s.size ?? 12;
     const billboard = this.billboards.add({
       position,
-      image: s.image ?? dotIcon,
-      width: s.size ?? 12,
-      height: s.size ?? 12,
+      image: this.images[s.icon ?? 'dot'],
+      width: size,
+      height: size,
       color: selected ? SELECTED : s.color,
       scale: selected ? 1.5 : 1,
       heightReference: HeightReference.CLAMP_TO_GROUND,
@@ -147,7 +159,7 @@ export class GroundPins<T> {
           outlineWidth: 3,
           style: LabelStyle.FILL_AND_OUTLINE,
           verticalOrigin: VerticalOrigin.BOTTOM,
-          pixelOffset: new Cartesian2(0, -((s.size ?? 12) / 2 + 3)),
+          pixelOffset: new Cartesian2(0, -(size / 2 + 3)),
           heightReference: HeightReference.CLAMP_TO_GROUND,
           distanceDisplayCondition: s.label.reach,
           show: s.label.reach !== undefined,

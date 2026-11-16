@@ -25,6 +25,7 @@ import { AreaTiles, type Tile } from '../data/area.ts';
 import { feedPoller, type Snapshot } from '../data/feeds.ts';
 import type { PickId } from '../globe/globe.ts';
 import { trackGround } from '../globe/ground.ts';
+import { type Icon, svgIcon } from '../globe/pixels.ts';
 import { formatInt, formatLatLon } from '../lib/format.ts';
 import type { Details, Field, Filter, LayerDef, LayerHandle, SearchHit } from './types.ts';
 
@@ -69,32 +70,35 @@ const LABEL_HEIGHT: Readonly<Record<AirportType, number>> = {
 const FEET = 0.3048;
 const RUNWAY = Color.fromCssColorString('#d6dce3').withAlpha(0.6);
 
-const glyph = (body: string, size: number) =>
-  `data:image/svg+xml,${encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">${body}</svg>`,
-  )}`;
 const ring = 'stroke="rgba(0,0,0,0.7)" stroke-width="1.4"';
-/** White glyphs that billboards tint: a runway cross for airports, H for heliports, a wave for seaplane bases. */
-const icons: Readonly<Record<AirportType, string>> = {
-  large: glyph(
+/** White glyphs that billboards tint (body on a 24-unit grid, CSS size): a runway cross for airports, H for heliports, a wave for seaplane bases. */
+const glyphs: Readonly<Record<AirportType, readonly [body: string, size: number]>> = {
+  large: [
     `<circle cx="12" cy="12" r="10" fill="#fff" ${ring}/><path d="M7 15.5 17 8.5M9.5 7.5l6.5 9" stroke="#000" stroke-opacity="0.75" stroke-width="2.2" stroke-linecap="round"/>`,
     24,
-  ),
-  medium: glyph(
+  ],
+  medium: [
     `<circle cx="12" cy="12" r="9" fill="#fff" ${ring}/><path d="M7.5 15 16.5 9" stroke="#000" stroke-opacity="0.75" stroke-width="2.2" stroke-linecap="round"/>`,
     20,
-  ),
-  small: glyph(`<circle cx="12" cy="12" r="7" fill="#fff" ${ring}/>`, 16),
-  heliport: glyph(
+  ],
+  small: [`<circle cx="12" cy="12" r="7" fill="#fff" ${ring}/>`, 16],
+  heliport: [
     `<circle cx="12" cy="12" r="9" fill="#fff" ${ring}/><path d="M8.5 7v10M15.5 7v10M8.5 12h7" stroke="#000" stroke-opacity="0.75" stroke-width="2"/>`,
     18,
-  ),
-  seaplane: glyph(
+  ],
+  seaplane: [
     `<circle cx="12" cy="12" r="9" fill="#fff" ${ring}/><path d="M6.5 13c1.8-1.6 3.7-1.6 5.5 0s3.7 1.6 5.5 0" fill="none" stroke="#000" stroke-opacity="0.75" stroke-width="2"/>`,
     18,
-  ),
-  balloonport: glyph(`<circle cx="12" cy="12" r="7" fill="#fff" ${ring}/>`, 16),
+  ],
+  balloonport: [`<circle cx="12" cy="12" r="7" fill="#fff" ${ring}/>`, 16],
 };
+const iconsFor = (ratio: number) =>
+  Object.fromEntries(
+    Object.entries(glyphs).map(([type, [body, size]]) => [
+      type,
+      svgIcon(ratio, size, size, body, '0 0 24 24'),
+    ]),
+  ) as Record<AirportType, Icon>;
 
 const surfaces: ReadonlyArray<readonly [RegExp, string]> = [
   [/^(ASP|ASPH|ASPHALT|BIT|BITUMEN|TAR|MAC)/, 'Asphalt'],
@@ -151,6 +155,7 @@ export const airportLayer: LayerDef = {
   create(globe): LayerHandle {
     const billboards = globe.scene.primitives.add(new BillboardCollection({ scene: globe.scene }));
     const labels = globe.scene.primitives.add(new LabelCollection({ scene: globe.scene }));
+    const icons = iconsFor(globe.pixelRatio);
     let runways: GroundPrimitive | undefined;
     let visible = false;
     let shown: ReadonlySet<string> = new Set(types.map((t) => t.id));
@@ -212,7 +217,7 @@ export const airportLayer: LayerDef = {
         lat,
         code: a.iata[i] || ident,
         billboard: billboards.add({
-          image: icons[type],
+          ...icons[type],
           position,
           scaleByDistance: new NearFarScalar(2e4, 1.1, 3e6, 0.55),
           distanceDisplayCondition: new DistanceDisplayCondition(0, below),

@@ -16,6 +16,7 @@ import type { AircraftData, AircraftNearby } from '../../../src/domain.ts';
 import { callApi } from '../client.ts';
 import { layerStatus } from '../data/status.ts';
 import type { PickId } from '../globe/globe.ts';
+import { svgIcon } from '../globe/pixels.ts';
 import { formatAge, formatBearing, formatInt, formatLatLon, metersToFeet, msToKnots } from '../lib/format.ts';
 import { advance } from '../lib/motion.ts';
 import type { Details, LayerDef, LayerHandle, SearchHit } from './types.ts';
@@ -43,12 +44,19 @@ const colorFor = (altitude: number | null, onGround: boolean): Color => {
   return bandColors[bandColors.length - 1] as Color;
 };
 
-/** A plane silhouette pointing north; billboards tint it. */
-const planeIcon = `data:image/svg+xml,${encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">' +
+/** A plane silhouette pointing north, 24 CSS px; billboards tint it. */
+const planeIcon = (ratio: number) =>
+  svgIcon(
+    ratio,
+    24,
+    24,
     '<path d="M16 2C17.3 2 18 3.2 18 4.6V12l11 6.5V21l-11-3.4V25l3.5 2.6v2L16 28.2l-5.5 1.4v-2L14 25v-7.4L3 21v-2.5L14 12V4.6C14 3.2 14.7 2 16 2Z" ' +
-    'fill="#fff" stroke="rgba(0,0,0,0.65)" stroke-width="1.5"/></svg>',
-)}`;
+      'fill="#fff" stroke="rgba(0,0,0,0.65)" stroke-width="1.5"/>',
+    '0 0 32 32',
+  );
+/** Billboard scales: 16 CSS px a plane, 25 selected. */
+const SCALE = 2 / 3;
+const SELECTED_SCALE = 16 / 15;
 
 /** A circle of `radius` meters around a point, as lon/lat pairs. */
 const circle = (lat: number, lon: number, radius: number): number[] => {
@@ -76,6 +84,7 @@ export const aircraftLayer: LayerDef = {
   create(globe): LayerHandle {
     const billboards = globe.scene.primitives.add(new BillboardCollection({ scene: globe.scene }));
     const area = globe.scene.primitives.add(new PolylineCollection());
+    const icon = planeIcon(globe.pixelRatio);
     let data: AircraftData | undefined;
     let byIcao = new Map<string, number>();
     let items: Billboard[] = [];
@@ -126,11 +135,11 @@ export const aircraftLayer: LayerDef = {
         const position = positionOf(i, now);
         items.push(
           billboards.add({
-            image: planeIcon,
+            ...icon,
             position: position ? Cartesian3.clone(position) : Cartesian3.ZERO,
             color:
               icao === selected ? SELECTED : colorFor(data.altitude[i] ?? null, data.onGround[i] ?? false),
-            scale: icao === selected ? 0.8 : 0.5,
+            scale: icao === selected ? SELECTED_SCALE : SCALE,
             rotation: -CesiumMath.toRadians(data.track[i] ?? 0),
             alignedAxis: Cartesian3.UNIT_Z,
             scaleByDistance: new NearFarScalar(2e5, 1.1, 2.5e6, 0.55),
@@ -269,7 +278,7 @@ export const aircraftLayer: LayerDef = {
           const b = i === undefined ? undefined : items[i];
           if (!b || !data || i === undefined) return;
           b.color = on ? SELECTED : colorFor(data.altitude[i] ?? null, data.onGround[i] ?? false);
-          b.scale = on ? 0.8 : 0.5;
+          b.scale = on ? SELECTED_SCALE : SCALE;
         };
         restyle(true);
         return () => {

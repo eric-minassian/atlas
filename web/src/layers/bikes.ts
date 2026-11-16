@@ -18,6 +18,7 @@ import { AreaTiles } from '../data/area.ts';
 import { layerStatus } from '../data/status.ts';
 import type { PickId } from '../globe/globe.ts';
 import { followGround } from '../globe/ground.ts';
+import { svgIcon } from '../globe/pixels.ts';
 import { formatAge, formatInt, formatLatLon } from '../lib/format.ts';
 import type { Details, LayerDef, LayerHandle, SearchHit } from './types.ts';
 
@@ -36,10 +37,13 @@ const availabilityOf = (bikes: number, renting: boolean): Availability =>
 /** Bike counts show beside stations this close in. */
 const COUNT_LABEL_HEIGHT = 3_000;
 
-const stationIcon = `data:image/svg+xml,${encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">' +
-    '<circle cx="8" cy="8" r="6" fill="#fff" stroke="rgba(0,0,0,0.7)" stroke-width="1.5"/></svg>',
-)}`;
+const stationIcon = (ratio: number) =>
+  svgIcon(
+    ratio,
+    16,
+    16,
+    '<circle cx="8" cy="8" r="6" fill="#fff" stroke="rgba(0,0,0,0.7)" stroke-width="1.5"/>',
+  );
 
 interface Station {
   readonly key: string;
@@ -93,6 +97,7 @@ export const bikeLayer: LayerDef = {
     const billboards = globe.scene.primitives.add(new BillboardCollection({ scene: globe.scene }));
     const labels = globe.scene.primitives.add(new LabelCollection({ scene: globe.scene }));
     const ground = followGround(globe, [billboards, labels]);
+    const icon = stationIcon(globe.pixelRatio);
     let stations = new Map<string, Station>();
     let selected: string | undefined;
     const billboardOf = new Map<string, ReturnType<typeof billboards.add>>();
@@ -127,7 +132,7 @@ export const bikeLayer: LayerDef = {
           billboardOf.set(
             station.key,
             billboards.add({
-              image: stationIcon,
+              ...icon,
               position,
               heightReference: HeightReference.CLAMP_TO_GROUND,
               scaleByDistance: scale,

@@ -4,6 +4,7 @@ import { Kbd } from '@/components/ui/kbd';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Inspector, type Selection } from './components/Inspector.tsx';
 import { defaultSettings, type LayerSettings, LayerPanel } from './components/LayerPanel.tsx';
+import { MapControls } from './components/MapControls.tsx';
 import { PanoramaOverlay, usePanorama } from './components/PanoramaOverlay.tsx';
 import { SearchDialog } from './components/SearchDialog.tsx';
 import { loadConfig } from './config.ts';
@@ -14,7 +15,7 @@ import { useCatalog, useLayerStates, useNow, usePersistentState } from './hooks.
 import { layerById, layers } from './layers/registry.ts';
 import type { Details, SearchHit } from './layers/types.ts';
 import { cn } from './lib/utils.ts';
-import { World } from './world.ts';
+import { type Hover, World } from './world.ts';
 
 const SETTINGS_KEY = 'atlas:layers:v1';
 
@@ -27,8 +28,6 @@ export function App() {
   const [selection, setSelection] = useState<Selection>();
   const [following, setFollowing] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [hover, setHover] = useState<{ title: string; x: number; y: number }>();
-  const pointer = useRef({ x: 0, y: 0 });
   const statuses = useCatalog();
   const [view, setView] = usePersistentState<{ readonly basemap: Basemap }>('atlas:view:v1', {
     basemap: 'satellite',
@@ -94,21 +93,15 @@ export function App() {
     [world],
   );
 
-  useEffect(() => {
-    if (!world) return;
-    world.onPointer(
-      (pick: Pick) => {
+  useEffect(
+    () =>
+      world?.onPick((pick: Pick) => {
         if (pick.kind === 'entity') select({ kind: 'entity', ref: { layer: pick.layer, key: pick.key } });
         else if (pick.kind === 'place') select({ kind: 'place', lat: pick.lat, lon: pick.lon });
         else select(undefined);
-      },
-      (pick: Pick) => {
-        const title = pick.kind === 'entity' ? world.details(pick)?.title : undefined;
-        if (container.current) container.current.style.cursor = title ? 'pointer' : '';
-        setHover(title ? { title, ...pointer.current } : undefined);
-      },
-    );
-  }, [world, select]);
+      }),
+    [world, select],
+  );
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -155,12 +148,7 @@ export function App() {
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div
-        className="relative h-full w-full bg-black"
-        onPointerMove={(e) => {
-          pointer.current = { x: e.clientX, y: e.clientY };
-        }}
-      >
+      <div className="relative h-full w-full bg-black">
         <div ref={mountGlobe} className="absolute inset-0" data-testid="globe" />
         {globeError && (
           <div className="absolute inset-0 flex items-center justify-center p-6">
@@ -211,6 +199,11 @@ export function App() {
               />
             )}
           </div>
+          {world && (
+            <div className="mt-2 flex justify-end">
+              <MapControls globe={world.globe} />
+            </div>
+          )}
           <footer className="mt-2 flex justify-end">
             <div className="pointer-events-auto flex max-w-full min-w-0 items-center gap-1.5 rounded bg-black/40 px-2 py-0.5 text-[10.5px] text-white/55">
               <div ref={credits} className="atlas-credits flex shrink-0 items-center whitespace-nowrap" />
@@ -222,14 +215,7 @@ export function App() {
           </footer>
         </div>
 
-        {hover && (
-          <div
-            className="pointer-events-none fixed z-10 rounded border bg-popover/90 px-1.5 py-0.5 text-[11px] text-popover-foreground shadow"
-            style={{ left: hover.x + 14, top: hover.y + 18 }}
-          >
-            {hover.title}
-          </div>
-        )}
+        {world && <HoverTip world={world} container={container} />}
 
         <SearchDialog
           world={world}
@@ -240,6 +226,54 @@ export function App() {
         />
       </div>
     </TooltipProvider>
+  );
+}
+
+/**
+ * The name of what the pointer rests on, beside it. On its own so hovering
+ * re-renders only this; it follows the pointer outside React, and hides as soon
+ * as the view starts moving (hover picks wait for it to hold still).
+ */
+function HoverTip({
+  world,
+  container,
+}: {
+  readonly world: World;
+  readonly container: React.RefObject<HTMLDivElement | null>;
+}) {
+  const [hover, setHover] = useState<Hover>();
+  const tip = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const stop = world.onHover((next) => {
+      if (container.current) container.current.style.cursor = next ? 'pointer' : '';
+      setHover(next);
+    });
+    const follow = (event: PointerEvent) => {
+      if (tip.current)
+        tip.current.style.transform = `translate(${event.clientX + 14}px, ${event.clientY + 18}px)`;
+    };
+    const hide = () => {
+      if (container.current) container.current.style.cursor = '';
+      setHover(undefined);
+    };
+    window.addEventListener('pointermove', follow, { passive: true });
+    for (const type of ['pointerdown', 'wheel', 'keydown'] as const)
+      window.addEventListener(type, hide, { passive: true });
+    return () => {
+      stop();
+      window.removeEventListener('pointermove', follow);
+      for (const type of ['pointerdown', 'wheel', 'keydown'] as const) window.removeEventListener(type, hide);
+    };
+  }, [world, container]);
+  if (!hover) return null;
+  return (
+    <div
+      ref={tip}
+      className="pointer-events-none fixed top-0 left-0 z-10 rounded border bg-popover/90 px-1.5 py-0.5 text-[11px] text-popover-foreground shadow"
+      style={{ transform: `translate(${hover.x + 14}px, ${hover.y + 18}px)` }}
+    >
+      {hover.title}
+    </div>
   );
 }
 

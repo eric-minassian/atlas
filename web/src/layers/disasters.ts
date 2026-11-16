@@ -12,6 +12,7 @@ import type { Disaster, DisasterAlert, TsunamiBulletin } from '../../../src/doma
 import { feedPoller, type Snapshot } from '../data/feeds.ts';
 import type { PickId } from '../globe/globe.ts';
 import { followGround } from '../globe/ground.ts';
+import { type Icon, svgIcon } from '../globe/pixels.ts';
 import { formatAge, formatLatLon, formatUtc } from '../lib/format.ts';
 import { type Area, boundsOf, GroundShapes, type Line } from './areas.ts';
 import type { Details, Filter, LayerDef, LayerHandle, SearchHit } from './types.ts';
@@ -58,14 +59,17 @@ const glyphs: Readonly<Record<Kind, string>> = {
 };
 
 /** A round badge in the alert's color with the event type's glyph. */
-const iconCache = new Map<string, string>();
-const icon = (kind: Kind, alert: DisasterAlert): string => {
-  const key = `${kind}/${alert}`;
+const iconCache = new Map<string, Icon>();
+const icon = (ratio: number, kind: Kind, alert: DisasterAlert): Icon => {
+  const key = `${kind}/${alert}/${ratio}`;
   let url = iconCache.get(key);
   if (!url) {
-    url = `data:image/svg+xml,${encodeURIComponent(
-      `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="13.5" fill="${alertOf.get(alert)?.color}" stroke="rgba(10,12,16,0.85)" stroke-width="2"/>${glyphs[kind]}</svg>`,
-    )}`;
+    url = svgIcon(
+      ratio,
+      32,
+      32,
+      `<circle cx="16" cy="16" r="13.5" fill="${alertOf.get(alert)?.color}" stroke="rgba(10,12,16,0.85)" stroke-width="2"/>${glyphs[kind]}`,
+    );
     iconCache.set(key, url);
   }
   return url;
@@ -189,7 +193,7 @@ export const disasterLayer: LayerDef = {
       for (const item of all) {
         const { lon, lat } = positionOf(item);
         const badge = badges.add({
-          image: icon(item.kind, item.alert),
+          ...icon(globe.pixelRatio, item.kind, item.alert),
           position: Cartesian3.fromDegrees(lon, lat, 0),
           heightReference: HeightReference.CLAMP_TO_GROUND,
           scale: scaleOf(item),
