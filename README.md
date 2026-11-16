@@ -6,7 +6,8 @@ events, clouds and weather radar, refreshed continuously from public sources. It
 
 ```sh
 pnpm install
-pnpm dev                  # http://atlas.localhost:3000 on the AWS Emulator
+pnpm dev                  # http://atlas.localhost:3000 on the AWS Emulator, with the ships service
+pnpm dev --no-services    # without it: aisstream.io allows 3 connections per key, shared with deployed stages
 plat dev run-cron tick    # refresh every feed now instead of waiting for the minute
 pnpm test                 # unit tests; `pnpm test:integration` (emulator), `pnpm test:e2e` (browser)
 pnpm lint && pnpm format:check

@@ -16,7 +16,7 @@
     "format:check": "oxfmt --check"
   },
   "dependencies": {
-    "@ericminassian/platform": "^0.3.0",
+    "@ericminassian/platform": "^0.4.0",
     "csv-parse": "7.0.3",
     "effect": "^4.1.4",
     "gtfs-realtime-bindings": "2.2.0",
@@ -26,7 +26,7 @@
   "devDependencies": {
     "@effect/tsgo": "^0.69.0",
     "@effect/vitest": "^4.1.4",
-    "@ericminassian/plat": "^0.3.0",
+    "@ericminassian/plat": "^0.4.0",
     "@mapbox/vector-tile": "^3.0.0",
     "@playwright/test": "^1.65.1",
     "@tailwindcss/vite": "^4.3.5",

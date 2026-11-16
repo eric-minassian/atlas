@@ -10,40 +10,19 @@ import { TileParams } from './area.ts';
 import {
   AircraftNearby,
   AirportsInTile,
-  AirportSnapshot,
-  AirQualitySnapshot,
-  AuroraSnapshot,
   BikeStations,
-  BikeSystemSnapshot,
-  BuoySnapshot,
-  CameraSnapshot,
   Catalog,
   ClientConfig,
-  DisasterSnapshot,
-  EarthquakeSnapshot,
-  EventSnapshot,
   FeedNotReady,
-  FirePerimeterSnapshot,
-  FireSnapshot,
   Here,
   Latitude,
-  LightningSnapshot,
   Longitude,
-  MetarSnapshot,
-  RadarSnapshot,
-  RiverSnapshot,
-  SatelliteSnapshot,
-  ShipSnapshot,
   SightingArea,
   SourceNotConfigured,
   TileOutOfRange,
-  TransitFeedSnapshot,
   TransitVehicles,
-  TsunamiSnapshot,
   UnknownCamera,
   UpstreamUnavailable,
-  VolcanoSnapshot,
-  WeatherAlertSnapshot,
   WebcamArea,
 } from './domain.ts';
 
@@ -56,7 +35,11 @@ export class SystemApi extends HttpApiGroup.make('system', { topLevel: true }).a
   }),
   /** Keys for services the browser calls directly, and which keyed sources are configured. */
   HttpApiEndpoint.get('config', '/config', { success: ClientConfig }),
-  /** Every feed's freshness: current version, last update, size and last error. */
+  /**
+   * Every feed's freshness: current version, last update, size and last error.
+   * Browsers fetch each snapshot from the public `feeds` store, at the key
+   * `snapshotKey` (src/catalog.ts) gives for its version.
+   */
   HttpApiEndpoint.get('catalog', '/catalog', { success: Catalog }),
   /** Conditions at a point (weather, air quality, elevation, time zone). */
   HttpApiEndpoint.get('here', '/here', {
@@ -68,49 +51,6 @@ export class SystemApi extends HttpApiGroup.make('system', { topLevel: true }).a
     error: UpstreamUnavailable,
   }),
 ) {}
-
-/**
- * The current snapshot of each feed. Responses carry an ETag (the snapshot
- * version) and are cached at the edge for a fraction of the feed's interval.
- */
-export class FeedsApi extends HttpApiGroup.make('feeds')
-  .add(
-    HttpApiEndpoint.get('satellites', '/satellites', { success: SatelliteSnapshot, error: FeedNotReady }),
-    HttpApiEndpoint.get('earthquakes', '/earthquakes', { success: EarthquakeSnapshot, error: FeedNotReady }),
-    HttpApiEndpoint.get('fires', '/fires', { success: FireSnapshot, error: FeedNotReady }),
-    HttpApiEndpoint.get('events', '/events', { success: EventSnapshot, error: FeedNotReady }),
-    HttpApiEndpoint.get('radar', '/radar', { success: RadarSnapshot, error: FeedNotReady }),
-    HttpApiEndpoint.get('metars', '/metars', { success: MetarSnapshot, error: FeedNotReady }),
-    HttpApiEndpoint.get('buoys', '/buoys', { success: BuoySnapshot, error: FeedNotReady }),
-    HttpApiEndpoint.get('airQuality', '/air-quality', { success: AirQualitySnapshot, error: FeedNotReady }),
-    HttpApiEndpoint.get('disasters', '/disasters', { success: DisasterSnapshot, error: FeedNotReady }),
-    HttpApiEndpoint.get('tsunamis', '/tsunamis', { success: TsunamiSnapshot, error: FeedNotReady }),
-    HttpApiEndpoint.get('weatherAlerts', '/weather-alerts', {
-      success: WeatherAlertSnapshot,
-      error: FeedNotReady,
-    }),
-    HttpApiEndpoint.get('firePerimeters', '/fire-perimeters', {
-      success: FirePerimeterSnapshot,
-      error: FeedNotReady,
-    }),
-    HttpApiEndpoint.get('volcanoes', '/volcanoes', { success: VolcanoSnapshot, error: FeedNotReady }),
-    HttpApiEndpoint.get('aurora', '/aurora', { success: AuroraSnapshot, error: FeedNotReady }),
-    HttpApiEndpoint.get('rivers', '/rivers', { success: RiverSnapshot, error: FeedNotReady }),
-    HttpApiEndpoint.get('ships', '/ships', { success: ShipSnapshot, error: FeedNotReady }),
-    /**
-     * Large and medium airports worldwide, without runways or links: the rest
-     * of the snapshot comes by tile (`/api/live/airports`), for the area in view.
-     */
-    HttpApiEndpoint.get('airports', '/airports', { success: AirportSnapshot, error: FeedNotReady }),
-    HttpApiEndpoint.get('transitFeeds', '/transit-feeds', {
-      success: TransitFeedSnapshot,
-      error: FeedNotReady,
-    }),
-    HttpApiEndpoint.get('bikeSystems', '/bike-systems', { success: BikeSystemSnapshot, error: FeedNotReady }),
-    HttpApiEndpoint.get('lightning', '/lightning', { success: LightningSnapshot, error: FeedNotReady }),
-    HttpApiEndpoint.get('cameras', '/cameras', { success: CameraSnapshot, error: FeedNotReady }),
-  )
-  .prefix('/feeds') {}
 
 /** Data looked up for the place someone is looking at, rather than refreshed on a schedule. */
 export class LiveApi extends HttpApiGroup.make('live')
@@ -195,7 +135,6 @@ export class TilesApi extends HttpApiGroup.make('tiles')
 
 export class Api extends HttpApi.make('atlas')
   .add(SystemApi)
-  .add(FeedsApi)
   .add(LiveApi)
   .add(TilesApi)
   .prefix('/api')

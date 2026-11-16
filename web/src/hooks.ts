@@ -1,6 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { FeedId, FeedStatus } from '../../src/domain.ts';
-import { callApi } from './client.ts';
 import { feedPoller, type FeedView } from './data/feeds.ts';
 import { layerStatus, type LayerStatus } from './data/status.ts';
 import type { LayerState, World } from './world.ts';
@@ -47,29 +46,12 @@ export function useLayerStates(world: World | undefined): number {
   );
 }
 
-/** Each feed's server-side status (freshness, errors), refreshed every minute. */
+/** Each feed's server-side status (freshness, errors), refreshed at least every minute. */
 export function useCatalog(): ReadonlyMap<FeedId, FeedStatus> {
-  const [statuses, setStatuses] = useState<ReadonlyMap<FeedId, FeedStatus>>(new Map());
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const catalog = await callApi((api) => api.catalog());
-        if (cancelled) return;
-        feedPoller.adoptStatuses(catalog.feeds);
-        setStatuses(new Map(catalog.feeds.map((f) => [f.id, f])));
-      } catch {
-        // Offline for a moment: keep the statuses we have and try again next minute.
-      }
-    };
-    void load();
-    const id = setInterval(() => void load(), 60_000);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, []);
-  return statuses;
+  return useSyncExternalStore(
+    (listener) => feedPoller.onStatuses(listener),
+    () => feedPoller.statuses,
+  );
 }
 
 /** State remembered in this browser; falls back to `initial` when storage is unavailable. */

@@ -1,19 +1,23 @@
 import { assert, describe, it } from '@effect/vitest';
 import { Platform } from '@ericminassian/platform';
-import { Effect, Fiber, Layer } from 'effect';
-import type { Socket } from 'effect/socket';
+import { captureTelemetry } from '@ericminassian/platform/testing';
+import { Effect, Exit, Fiber, Layer, Option, Scope } from 'effect';
+import { Socket } from 'effect/socket';
 import { TestClock } from 'effect/testing';
+import { afterEach, beforeEach } from 'vitest';
 import type { ShipData } from '../src/domain.ts';
+import { FeedStore } from '../src/feeds.ts';
 import {
   AisCollector,
   cleanText,
-  makeShipSource,
   mergeShips,
   parseAisTime,
   type Position,
-  type ShipSourceOptions,
+  readDigitraffic,
+  streamAisstream,
 } from '../src/ingest/ships.ts';
-import { fakeHttp, fixture, recorded, type Upstream } from './support.ts';
+import { listen, ShipsLayer, ShipTracker } from '../src/ships.ts';
+import { fakeHttp, fixture } from './support.ts';
 
 const NOW = Date.parse('2026-11-16T01:22:10Z') / 1000;
 const recordedMessages = fixture('aisstream.jsonl').trim().split('\n');
@@ -92,19 +96,6 @@ const scriptedSocket = (
     return socket;
   };
   return { make, sent };
-};
-
-const read = (options: ShipSourceOptions, secrets: Record<string, string>, upstream: Upstream = recorded) => {
-  const http = fakeHttp(upstream);
-  return makeShipSource(options)
-    .read({}, Effect.succeedNone)
-    .pipe(
-      Effect.provide(Layer.merge(http.layer, Platform.layerMemory({ secrets }))),
-      Effect.map((result) => {
-        if (result._tag !== 'Updated') throw new Error('expected an update');
-        return { data: result.data, calls: http.calls };
-      }),
-    );
 };
 
 describe('ships: merging reports into the previous snapshot', () => {
@@ -247,86 +238,212 @@ describe('ships: aisstream.io messages', () => {
   });
 });
 
-describe('ships: source', () => {
-  it.effect('reads the Baltic from Digitraffic without an aisstream key', () =>
-    Effect.gen(function* () {
-      yield* TestClock.setTime(1794790561538);
-      const { data, calls } = yield* read({}, {});
-      assert.isTrue(calls.every((c) => c.url.host === 'meri.digitraffic.fi'));
-      assert.strictEqual(calls[0]?.headers['digitraffic-user'], 'atlas');
-      // The vessel under way last heard nine hours ago is gone; the moored one from nine hours ago too.
-      assert.deepStrictEqual(
-        data.mmsi.toSorted((a, b) => a - b),
-        [255806247, 255806258, 259859000],
-      );
-      const silva = row(data, 255806247);
-      assert.deepStrictEqual([silva?.name, silva?.shipType, silva?.callsign], ['SILVA', 70, 'CQAQ5']);
-    }),
-  );
+const NOW_MS = 1794790561538;
+const BALTIC = [255806247, 255806258, 259859000];
 
-  it.effect('merges what aisstream.io sent during the listen with Digitraffic', () =>
+describe('ships: aisstream.io connection', () => {
+  const connect = (socket: ReturnType<typeof scriptedSocket>, heard: AisCollector[]) =>
+    streamAisstream('test-key', (batch) => Effect.sync(() => void heard.push(batch))).pipe(
+      Effect.provideService(Socket.WebSocketConstructor, socket.make),
+    );
+
+  it.effect('hands each batch to the tracker until the connection ends, and says why', () =>
     Effect.gen(function* () {
-      yield* TestClock.setTime(Date.parse('2026-11-16T01:22:05Z'));
-      const socket = scriptedSocket(recordedMessages);
-      const listening = yield* Effect.forkChild(
-        read({ webSocket: socket.make }, { AISSTREAM_KEY: 'test-key' }),
-      );
-      // The scripted socket delivers on the event loop; then the listen runs out its time.
-      yield* Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 50)));
-      yield* TestClock.adjust('45 seconds');
-      const { data } = yield* Fiber.join(listening);
+      const socket = scriptedSocket(recordedMessages, { code: 1006, reason: '' });
+      const heard: AisCollector[] = [];
+      const { messages, ended } = yield* connect(socket, heard);
       const subscription = JSON.parse(socket.sent[0] ?? '{}') as {
         APIKey: string;
         FilterMessageTypes: string[];
       };
       assert.strictEqual(subscription.APIKey, 'test-key');
       assert.include(subscription.FilterMessageTypes, 'ShipStaticData');
-      // Heard on the stream, and Digitraffic's moored vessel from half an hour earlier.
-      assert.includeMembers([...data.mmsi], [431011136, 211518790, 338534526, 314322000, 259859000]);
-      assert.strictEqual(row(data, 431011136)?.name, 'YAMABISHIMARU NO.18');
-      // Static data for a vessel with no position has nowhere to go.
-      assert.notInclude([...data.mmsi], 219551000);
+      assert.strictEqual(messages, recordedMessages.length - 1);
+      assert.include(ended, '1006');
+      const mmsis = heard.flatMap((batch) => Array.from(batch.positions.keys()));
+      assert.includeMembers(mmsis, [431011136, 211518790, 338534526, 314322000]);
     }),
   );
 
-  it.effect('still publishes Digitraffic when aisstream.io refuses the key', () =>
+  it.effect('ends a connection that goes quiet', () =>
     Effect.gen(function* () {
-      yield* TestClock.setTime(1794790561538);
+      const heard: AisCollector[] = [];
+      const listening = yield* Effect.forkChild(connect(scriptedSocket(recordedMessages), heard));
+      // The scripted socket delivers on the event loop; then nothing more comes.
+      yield* Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 50)));
+      yield* TestClock.adjust('2 minutes');
+      const { ended } = yield* Fiber.join(listening);
+      assert.include(ended, 'nothing heard');
+      assert.isAbove(heard.length, 0);
+    }),
+  );
+
+  it.effect('fails when the key is refused', () =>
+    Effect.gen(function* () {
       const socket = scriptedSocket(['{"error":"Api Key Is Not Valid"}'], { code: 1000, reason: '' });
-      const { data } = yield* read({ webSocket: socket.make }, { AISSTREAM_KEY: 'bad' });
-      assert.deepStrictEqual(
-        data.mmsi.toSorted((a, b) => a - b),
-        [255806247, 255806258, 259859000],
-      );
+      const error = yield* Effect.flip(connect(socket, []));
+      assert.strictEqual(error._tag, 'IngestError');
+      assert.include(error.message, 'Api Key Is Not Valid');
     }),
   );
 
-  it.effect('fails when neither source answers', () =>
+  it.effect('fails when the connection ends before sending anything', () =>
     Effect.gen(function* () {
-      const socket = scriptedSocket([], { code: 1011, reason: 'overloaded' });
-      const error = yield* Effect.flip(
-        read({ webSocket: socket.make }, { AISSTREAM_KEY: 'k' }, () => undefined),
-      );
+      const error = yield* Effect.flip(connect(scriptedSocket([], { code: 1011, reason: 'overloaded' }), []));
       assert.include(error.message, 'aisstream.io');
-      assert.include(error.message, 'Digitraffic');
+    }),
+  );
+});
+
+describe('ships: Digitraffic', () => {
+  it.effect(
+    'reaches back as long as vessels are kept on the first poll, and to the previous poll after',
+    () =>
+      Effect.gen(function* () {
+        const http = fakeHttp();
+        const first = yield* readDigitraffic(NOW_MS).pipe(Effect.provide(http.layer));
+        assert.isTrue(http.calls.every((c) => c.headers['digitraffic-user'] === 'atlas'));
+        const [locations, vessels] = http.calls;
+        assert.strictEqual(locations?.url.searchParams.get('from'), String(NOW_MS - 3 * 60 * 60 * 1000));
+        assert.isNull(vessels?.url.searchParams.get('from'));
+        assert.includeMembers(
+          first.positions.map((p) => p.mmsi),
+          BALTIC,
+        );
+        assert.deepStrictEqual(
+          first.statics.find((v) => v.mmsi === 255806247),
+          {
+            mmsi: 255806247,
+            name: 'SILVA',
+            callsign: 'CQAQ5',
+            imo: 9237010,
+            shipType: 70,
+            destination: 'FIHMN',
+            length: 100,
+            width: 17,
+          },
+        );
+
+        yield* readDigitraffic(NOW_MS + 60_000, NOW_MS - 30_000).pipe(Effect.provide(http.layer));
+        for (const call of http.calls.slice(2))
+          assert.strictEqual(call.url.searchParams.get('from'), String(NOW_MS - 30_000));
+      }),
+  );
+});
+
+/** The tracker on `platform`, with the feed store it publishes to. */
+const trackerOn = (platform: Layer.Layer<Platform.Services>) =>
+  ShipTracker.layer.pipe(Layer.provideMerge(FeedStore.layer), Layer.provideMerge(platform));
+
+const published = Effect.gen(function* () {
+  const store = yield* FeedStore;
+  return Option.getOrThrow(yield* store.payload('ships'));
+});
+
+describe('ships: tracker', () => {
+  it.effect("publishes what it heard, and fills in static data heard before a vessel's position", () =>
+    Effect.gen(function* () {
+      yield* TestClock.setTime(NOW_MS);
+      const tracker = yield* ShipTracker;
+      const now = NOW_MS / 1000;
+      yield* tracker.hear([position(1, now - 10, 12)], [{ mmsi: 2, name: 'EARLY BIRD', length: 90 }]);
+      const first = yield* tracker.publish;
+      assert.deepStrictEqual([...first.mmsi], [1]);
+
+      yield* TestClock.adjust('1 minute');
+      yield* tracker.hear([position(2, now + 50, 0, 5)], []);
+      const second = yield* published;
+      assert.deepStrictEqual([...second.mmsi], [1]);
+      yield* tracker.publish;
+      const third = yield* published;
+      assert.deepStrictEqual(
+        [...third.mmsi].toSorted((a, b) => a - b),
+        [1, 2],
+      );
+      assert.deepStrictEqual([row(third, 2)?.name, row(third, 2)?.length], ['EARLY BIRD', 90]);
+      const status = (yield* (yield* FeedStore).states).get('ships');
+      assert.strictEqual(status?.count, 2);
+      assert.strictEqual(status?.intervalSeconds, 60);
+    }).pipe(Effect.provide(trackerOn(Platform.layerMemory()))),
+  );
+
+  it.effect('starts from the last published snapshot, so a restart keeps the map', () =>
+    Effect.gen(function* () {
+      yield* TestClock.setTime(NOW_MS);
+      const platform = yield* Layer.build(Platform.layerMemory());
+      const shared = Layer.succeedContext(platform);
+      yield* Effect.gen(function* () {
+        const tracker = yield* ShipTracker;
+        yield* tracker.hear([position(7, NOW_MS / 1000, 0, 5)], [{ mmsi: 7, name: 'STAYS' }]);
+        yield* tracker.publish;
+      }).pipe(Effect.provide(trackerOn(shared)));
+      yield* TestClock.adjust('1 minute');
+      const restarted = yield* Effect.flatMap(ShipTracker, (t) => t.publish).pipe(
+        Effect.provide(trackerOn(shared)),
+      );
+      assert.deepStrictEqual([row(restarted, 7)?.name], ['STAYS']);
+    }),
+  );
+});
+
+describe('ships: service', () => {
+  let telemetry: ReturnType<typeof captureTelemetry>;
+  beforeEach(() => {
+    telemetry = captureTelemetry();
+  });
+  afterEach(() => telemetry.stop());
+  /** The service's units of work, as the console counts them. */
+  const jobs = () =>
+    telemetry.events.flatMap((e) => (e.t === 'job' && e.kind === 'service' ? [`${e.name} ${e.status}`] : []));
+
+  it.effect('polls Digitraffic at once, publishes every minute, and once more when it stops', () =>
+    Effect.gen(function* () {
+      yield* TestClock.setTime(NOW_MS);
+      const platform = yield* Layer.build(Platform.layerMemory());
+      const http = fakeHttp();
+      const versions = Effect.map(
+        Effect.flatMap(FeedStore, (store) => store.states),
+        (states) => states.get('ships')?.version,
+      ).pipe(Effect.provide(FeedStore.layer.pipe(Layer.provide(Layer.succeedContext(platform)))));
+
+      const scope = yield* Scope.make();
+      yield* Layer.buildWithScope(
+        ShipsLayer.pipe(Layer.provide([Layer.succeedContext(platform), http.layer])),
+        scope,
+      );
+      yield* TestClock.adjust('1 second');
+      assert.isAbove(http.calls.length, 0);
+      assert.isUndefined(yield* versions);
+
+      yield* TestClock.adjust('1 minute');
+      const first = yield* versions;
+      assert.isDefined(first);
+      const data = yield* published.pipe(
+        Effect.provide(FeedStore.layer.pipe(Layer.provide(Layer.succeedContext(platform)))),
+      );
+      assert.includeMembers([...data.mmsi], [255806247]);
+
+      yield* Scope.close(scope, Exit.void);
+      const last = yield* versions;
+      assert.notStrictEqual(last, first);
+      // A poll at once and another a minute later, a publish each minute, and the last on the way out.
+      assert.deepStrictEqual(jobs().toSorted(), [
+        'digitraffic ok',
+        'digitraffic ok',
+        'publish ok',
+        'publish ok',
+      ]);
     }),
   );
 
-  it.effect('keeps vessels from the previous snapshot', () =>
+  it.effect('holds an aisstream.io connection per run, heard into the tracker', () =>
     Effect.gen(function* () {
-      yield* TestClock.setTime(1794790561538);
-      const previous = mergeShips(
-        undefined,
-        [position(42, 1794790561538 / 1000 - 600, 0)],
-        [{ mmsi: 42, name: 'OLD' }],
-        1794790561538 / 1000,
-      );
-      const http = fakeHttp();
-      const result = yield* makeShipSource()
-        .read({}, Effect.succeedSome(previous))
-        .pipe(Effect.provide(Layer.merge(http.layer, Platform.layerMemory())));
-      assert.strictEqual(result._tag, 'Updated');
-      if (result._tag === 'Updated') assert.include([...result.data.mmsi], 42);
-    }),
+      yield* TestClock.setTime(Date.parse('2026-11-16T01:22:05Z'));
+      const socket = scriptedSocket(recordedMessages, { code: 1006, reason: '' });
+      yield* listen.pipe(Effect.provideService(Socket.WebSocketConstructor, socket.make));
+      const data = yield* (yield* ShipTracker).publish;
+      assert.includeMembers([...data.mmsi], [431011136, 211518790, 338534526, 314322000]);
+      assert.strictEqual(row(data, 431011136)?.name, 'YAMABISHIMARU NO.18');
+    }).pipe(Effect.provide(trackerOn(Platform.layerMemory({ secrets: { AISSTREAM_KEY: 'test-key' } })))),
   );
 });

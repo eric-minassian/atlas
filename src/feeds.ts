@@ -1,11 +1,13 @@
 import { Db, Storage } from '@ericminassian/platform';
 import { Context, DateTime, Effect, Layer, Option, Random, Schema } from 'effect';
+import { feeds, snapshotKey } from './catalog.ts';
 import { type FeedData, FeedId, type FeedStatus, Snapshots } from './domain.ts';
 import type { Validators } from './ingest/index.ts';
+import { views } from './views.ts';
 
 /**
  * A feed's bookkeeping, one document per feed. `version` names the snapshot
- * object currently served; `previousVersion` is kept one more cycle for
+ * file currently served; `previousVersion` is kept one more cycle for
  * readers that saw the old pointer, then deleted.
  */
 export const FeedState = Schema.Struct({
@@ -19,6 +21,13 @@ export const FeedState = Schema.Struct({
   failures: Schema.Int,
   version: Schema.optionalKey(Schema.String),
   previousVersion: Schema.optionalKey(Schema.String),
+  /**
+   * The snapshot files are in the public `feeds` store. Snapshots published
+   * before they moved there are in the private `snapshots` store, which
+   * browsers can't read: such a feed reads as never refreshed (no state at
+   * all), and its files there are deleted when it next refreshes.
+   */
+  public: Schema.optionalKey(Schema.Literal(true)),
   fetchedAt: Schema.optionalKey(Schema.Finite),
   checkedAt: Schema.optionalKey(Schema.Finite),
   count: Schema.optionalKey(Schema.Int),
@@ -36,7 +45,19 @@ export interface Snapshot {
   readonly body: string;
 }
 
-const objectKey = (feed: FeedId, version: string) => `${feed}/${version}.json`;
+/** Versions are never reused, so a snapshot's files never change. */
+const IMMUTABLE = 'public, max-age=31536000, immutable';
+
+const isLegacy = (state: FeedState) => state.version !== undefined && state.public !== true;
+
+/** A feed's first state, as its first refresh starts. */
+const fresh = (feed: FeedId, intervalSeconds: number, attemptedAt: number): FeedState => ({
+  kind: 'feed',
+  feed,
+  intervalSeconds,
+  attemptedAt,
+  failures: 0,
+});
 
 const toStatus = (feed: FeedId, intervalSeconds: number, state: FeedState | undefined): FeedStatus => ({
   id: feed,
@@ -48,7 +69,7 @@ const toStatus = (feed: FeedId, intervalSeconds: number, state: FeedState | unde
   intervalSeconds: state?.intervalSeconds ?? intervalSeconds,
 });
 
-/** Feed state in the db and snapshots in the `snapshots` store. */
+/** Feed state in the db and snapshots in the public `feeds` store. */
 export class FeedStore extends Context.Service<
   FeedStore,
   {
@@ -56,7 +77,7 @@ export class FeedStore extends Context.Service<
     status(feed: FeedId, intervalSeconds: number, state: FeedState | undefined): FeedStatus;
     /** Records that a refresh started, and returns the validators for a conditional read. */
     begin(feed: FeedId, intervalSeconds: number): Effect.Effect<Validators>;
-    /** Stores a new snapshot and points the feed at it. */
+    /** Stores a new snapshot (and its browser view, if the feed has one) and points the feed at it. */
     publish<F extends FeedId>(
       feed: F,
       data: FeedData[F],
@@ -77,38 +98,59 @@ export class FeedStore extends Context.Service<
     FeedStore,
     Effect.gen(function* () {
       const db = yield* Db;
-      const store = (yield* Storage).store('snapshots');
+      const storage = yield* Storage;
+      const files = storage.store('feeds');
+      const legacyFiles = storage.store('snapshots');
       const collection = db.collection('feeds', { schema: FeedState, partition: 'kind', sort: 'feed' });
       const cache = new Map<FeedId, Snapshot>();
 
       const now = Effect.map(DateTime.now, DateTime.toEpochMillis);
-      const get = (feed: FeedId) => collection.get({ kind: 'feed', feed });
-      /** Applies `change` to the feed's document; the worker is its only writer, one refresh per feed at a time. */
+      const get = (feed: FeedId) =>
+        Effect.map(
+          collection.get({ kind: 'feed', feed }),
+          Option.filter((state) => !isLegacy(state)),
+        );
+
+      /**
+       * The state a write starts from. A legacy state's files are deleted first: nothing
+       * reads them, and the write that follows replaces the state that named them.
+       */
+      const load = Effect.fnUntraced(function* (feed: FeedId) {
+        const stored = yield* collection.get({ kind: 'feed', feed });
+        if (Option.isNone(stored) || !isLegacy(stored.value)) return stored;
+        const { version, previousVersion } = stored.value;
+        for (const old of [version, previousVersion])
+          if (old) yield* legacyFiles.delete(snapshotKey(feed, old));
+        return Option.none<FeedState>();
+      });
+
+      /** Applies `change` to the feed's document; each feed has one writer, one refresh at a time. */
       const modify = Effect.fnUntraced(function* (feed: FeedId, change: (state: FeedState) => FeedState) {
-        const current = yield* get(feed);
-        if (Option.isNone(current)) return yield* Effect.die(new Error(`feed ${feed} has no state`));
-        return yield* collection.put(change(current.value));
+        const state = yield* load(feed);
+        if (Option.isNone(state)) return yield* Effect.die(new Error(`feed ${feed} has no state`));
+        return yield* collection.put(change(state.value));
       });
 
       const isFeedId = Schema.is(FeedId);
       const states = Effect.map(
         collection.queryAll({ kind: 'feed' }),
-        (docs) => new Map(docs.flatMap((d) => (isFeedId(d.feed) ? [[d.feed, d] as const] : []))),
+        (docs) =>
+          new Map(docs.flatMap((d) => (isFeedId(d.feed) && !isLegacy(d) ? [[d.feed, d] as const] : []))),
       );
 
       const begin = Effect.fn('FeedStore.begin')(function* (feed: FeedId, intervalSeconds: number) {
         const attemptedAt = yield* now;
-        const current = yield* get(feed);
-        const base: FeedState = Option.getOrElse(current, () => ({
-          kind: 'feed' as const,
-          feed,
-          intervalSeconds,
-          attemptedAt,
-          failures: 0,
-        }));
+        const base = Option.getOrElse(yield* load(feed), () => fresh(feed, intervalSeconds, attemptedAt));
         yield* collection.put({ ...base, intervalSeconds, attemptedAt });
         return { etag: base.etag, lastModified: base.lastModified };
       });
+
+      const deleteFiles = (feed: FeedId, version: string) =>
+        Effect.gen(function* () {
+          yield* files.delete(snapshotKey(feed, version));
+          const view = feeds[feed].browserView;
+          if (view) yield* files.delete(snapshotKey(feed, version, view));
+        });
 
       const publish = Effect.fn('FeedStore.publish')(function* <F extends FeedId>(
         feed: F,
@@ -119,27 +161,44 @@ export class FeedStore extends Context.Service<
         const fetchedAt = yield* now;
         const suffix = yield* Random.nextIntBetween(0, 36 ** 4);
         const version = `${fetchedAt.toString(36)}${suffix.toString(36).padStart(4, '0')}`;
+        const write = (key: string, body: string) =>
+          files.put(key, body, { contentType: 'application/json', cacheControl: IMMUTABLE });
+
+        // Files first, then the pointer: whoever sees the new version can fetch it.
+        const view = feeds[feed].browserView;
+        const cut = views[feed];
+        if (view && cut) {
+          const viewed = cut(data);
+          yield* write(
+            snapshotKey(feed, version, view),
+            JSON.stringify({ feed, version, fetchedAt, count: viewed.count, data: viewed.data }),
+          );
+        }
         const body = JSON.stringify({ feed, version, fetchedAt, count, data });
-        yield* store.put(objectKey(feed, version), body, { contentType: 'application/json' });
+        yield* write(snapshotKey(feed, version), body);
         const bytes = new TextEncoder().encode(body).byteLength;
-        let stale: string | undefined;
-        yield* modify(feed, (state) => {
-          stale = state.previousVersion;
-          const { error: _, ...rest } = state;
-          return {
-            ...rest,
-            failures: 0,
-            version,
-            fetchedAt,
-            checkedAt: fetchedAt,
-            count,
-            bytes,
-            ...(state.version ? { previousVersion: state.version } : {}),
-            ...(validators.etag ? { etag: validators.etag } : {}),
-            ...(validators.lastModified ? { lastModified: validators.lastModified } : {}),
-          };
+
+        // A streamed feed publishes without a `begin`, so its first publish creates the document.
+        const state = Option.getOrElse(yield* load(feed), () =>
+          fresh(feed, feeds[feed].intervalSeconds, fetchedAt),
+        );
+        const { error: _, ...rest } = state;
+        yield* collection.put({
+          ...rest,
+          // A streamed feed has no `begin` to bring its interval up to date.
+          intervalSeconds: feeds[feed].intervalSeconds,
+          public: true,
+          failures: 0,
+          version,
+          fetchedAt,
+          checkedAt: fetchedAt,
+          count,
+          bytes,
+          ...(state.version ? { previousVersion: state.version } : {}),
+          ...(validators.etag ? { etag: validators.etag } : {}),
+          ...(validators.lastModified ? { lastModified: validators.lastModified } : {}),
         });
-        if (stale) yield* store.delete(objectKey(feed, stale));
+        if (state.previousVersion) yield* deleteFiles(feed, state.previousVersion);
         return { version, bytes };
       });
 
@@ -158,7 +217,7 @@ export class FeedStore extends Context.Service<
         if (Option.isNone(version)) return Option.none<Snapshot>();
         const cached = cache.get(feed);
         if (cached?.version === version.value) return Option.some(cached);
-        const body = yield* store.getText(objectKey(feed, version.value));
+        const body = yield* files.getText(snapshotKey(feed, version.value));
         if (Option.isNone(body)) return Option.fromUndefinedOr(cached);
         const snapshot: Snapshot = {
           version: version.value,
