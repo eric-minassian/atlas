@@ -1,0 +1,181 @@
+{
+ "meta": {
+  "publisher": "Environment Agency"
+ },
+ "items": [
+  {
+   "@id": "http://environment.data.gov.uk/flood-monitoring/id/stations/2067",
+   "RLOIid": "2032",
+   "catchmentName": "Worcestershire Middle Severn",
+   "label": "Swindon",
+   "lat": 52.51274,
+   "long": -2.205945,
+   "measures": [
+    {
+     "@id": "http://environment.data.gov.uk/flood-monitoring/id/measures/2067-level-stage-i-15_min-mASD",
+     "parameter": "level",
+     "parameterName": "Water Level",
+     "period": 900,
+     "qualifier": "Stage",
+     "unitName": "mASD"
+    }
+   ],
+   "notation": "2067",
+   "riverName": "Smestow Brook",
+   "stageScale": {
+    "@id": "http://environment.data.gov.uk/flood-monitoring/id/stations/2067/stageScale",
+    "typicalRangeHigh": 1.336,
+    "typicalRangeLow": 1.044,
+    "scaleMax": 3
+   },
+   "stationReference": "2067",
+   "status": "http://environment.data.gov.uk/flood-monitoring/def/core/statusActive",
+   "town": "Swindon"
+  },
+  {
+   "@id": "http://environment.data.gov.uk/flood-monitoring/id/stations/1029TH",
+   "RLOIid": "7041",
+   "catchmentName": "Cotswolds",
+   "label": "Bourton Dickler",
+   "lat": 51.874767,
+   "long": -1.740083,
+   "measures": [
+    {
+     "@id": "http://environment.data.gov.uk/flood-monitoring/id/measures/1029TH-level-downstage-i-15_min-mASD",
+     "parameter": "level",
+     "parameterName": "Water Level",
+     "period": 900,
+     "qualifier": "Downstream Stage",
+     "unitName": "mASD"
+    },
+    {
+     "@id": "http://environment.data.gov.uk/flood-monitoring/id/measures/1029TH-level-stage-i-15_min-mASD",
+     "parameter": "level",
+     "parameterName": "Water Level",
+     "period": 900,
+     "qualifier": "Stage",
+     "unitName": "mASD"
+    }
+   ],
+   "notation": "1029TH",
+   "riverName": "River Dikler",
+   "stageScale": {
+    "@id": "http://environment.data.gov.uk/flood-monitoring/id/stations/1029TH/stageScale",
+    "typicalRangeHigh": 0.42,
+    "typicalRangeLow": 0.068,
+    "scaleMax": 3
+   },
+   "stationReference": "1029TH",
+   "status": "http://environment.data.gov.uk/flood-monitoring/def/core/statusActive",
+   "town": "Little Rissington"
+  },
+  {
+   "@id": "http://environment.data.gov.uk/flood-monitoring/id/stations/E70039",
+   "RLOIid": "6282",
+   "catchmentName": "England - East Coast",
+   "label": "Lowestoft",
+   "lat": 52.473075,
+   "long": 1.750085,
+   "measures": [
+    {
+     "@id": "http://environment.data.gov.uk/flood-monitoring/id/measures/E70039-level-tidal_level-Mean-15_min-mAOD",
+     "parameter": "level",
+     "parameterName": "Water Level",
+     "period": 900,
+     "qualifier": "Tidal Level",
+     "unitName": "mAOD"
+    }
+   ],
+   "notation": "E70039",
+   "riverName": "Tide",
+   "stageScale": {
+    "@id": "http://environment.data.gov.uk/flood-monitoring/id/stations/E70039/stageScale",
+    "scaleMax": 3
+   },
+   "stationReference": "E70039",
+   "status": "http://environment.data.gov.uk/flood-monitoring/def/core/statusActive",
+   "town": "Lowestoft"
+  },
+  {
+   "@id": "http://environment.data.gov.uk/flood-monitoring/id/stations/E85123",
+   "RLOIid": [
+    "3359",
+    "9647"
+   ],
+   "catchmentName": "Taw and North Devon Streams",
+   "label": [
+    "Ilfracombe Lambda",
+    "Ilfracombe Lambda Upstream"
+   ],
+   "lat": [
+    51.19557,
+    51.196412
+   ],
+   "long": [
+    -4.119951,
+    -4.120133
+   ],
+   "measures": [
+    {
+     "@id": "http://environment.data.gov.uk/flood-monitoring/id/measures/E85123-level-stage-i-15_min-m",
+     "parameter": "level",
+     "parameterName": "Water Level",
+     "period": 900,
+     "qualifier": "Stage",
+     "unitName": "m"
+    },
+    {
+     "@id": "http://environment.data.gov.uk/flood-monitoring/id/measures/E85123-level-stage-i-15_min-mASD",
+     "parameter": "level",
+     "parameterName": "Water Level",
+     "period": 900,
+     "qualifier": "Stage",
+     "unitName": "mASD"
+    }
+   ],
+   "notation": "E85123",
+   "riverName": "East Wilder Brook",
+   "stageScale": {
+    "@id": "http://environment.data.gov.uk/flood-monitoring/id/stations/E85123/stageScale",
+    "typicalRangeHigh": 0.32,
+    "typicalRangeLow": 0.109,
+    "scaleMax": 1
+   },
+   "stationReference": "E85123",
+   "status": [
+    "http://environment.data.gov.uk/flood-monitoring/def/core/statusActive",
+    "http://environment.data.gov.uk/flood-monitoring/def/core/statusSuspended"
+   ],
+   "town": "Ilfracombe"
+  },
+  {
+   "@id": "http://environment.data.gov.uk/flood-monitoring/id/stations/44239",
+   "RLOIid": "3365",
+   "catchmentName": "Frome, Piddle, Poole Harbour and Purbeck",
+   "label": "Kingston Russell",
+   "lat": 50.715805,
+   "long": -2.5855,
+   "measures": [
+    {
+     "@id": "http://environment.data.gov.uk/flood-monitoring/id/measures/44239-level-groundwater-i-15_min-mAOD",
+     "parameter": "level",
+     "parameterName": "Water Level",
+     "period": 900,
+     "qualifier": "Groundwater",
+     "unitName": "mAOD"
+    }
+   ],
+   "notation": "44239",
+   "riverName": "Groundwater Level",
+   "stageScale": {
+    "@id": "http://environment.data.gov.uk/flood-monitoring/id/stations/44239/stageScale",
+    "typicalRangeHigh": 113,
+    "typicalRangeLow": 103.665,
+    "scaleMax": 125
+   },
+   "stationReference": "44239",
+   "status": "http://environment.data.gov.uk/flood-monitoring/def/core/statusActive",
+   "town": "Kingston Russell"
+  }
+ ]
+}

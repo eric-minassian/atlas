@@ -1,0 +1,58 @@
+{ 
+  "@context" : "http://environment.data.gov.uk/flood-monitoring/meta/context.jsonld" ,
+  "meta" : { 
+    "publisher" : "Environment Agency" ,
+    "licence" : "http://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" ,
+    "documentation" : "http://environment.data.gov.uk/flood-monitoring/doc/reference" ,
+    "version" : "0.9" ,
+    "comment" : "Status: Beta service" ,
+    "hasFormat" : [ "http://environment.data.gov.uk/flood-monitoring/id/floods.csv", "http://environment.data.gov.uk/flood-monitoring/id/floods.rdf", "http://environment.data.gov.uk/flood-monitoring/id/floods.ttl", "http://environment.data.gov.uk/flood-monitoring/id/floods.html" ]
+  }
+   ,
+  "items" : [ { 
+    "@id" : "http://environment.data.gov.uk/flood-monitoring/id/floods/031WAF213" ,
+    "description" : "River Leadon catchment" ,
+    "eaAreaName" : "West Midlands" ,
+    "eaRegionName" : "No longer used" ,
+    "floodArea" : { 
+      "@id" : "http://environment.data.gov.uk/flood-monitoring/id/floodAreas/031WAF213" ,
+      "county" : "Gloucestershire, Herefordshire, Worcestershire" ,
+      "notation" : "031WAF213" ,
+      "polygon" : "http://environment.data.gov.uk/flood-monitoring/id/floodAreas/031WAF213/polygon" ,
+      "riverOrSea" : "Leadon, Glynch"
+    }
+     ,
+    "floodAreaID" : "031WAF213" ,
+    "isTidal" : false ,
+    "message" : "Forecast rising river levels this evening may lead to flooding.\nFlooding is possible on Sunday 15 November .\nFlooding may affect low lying land and roads adjacent to the River Leadon. Locations that may be affected include Ledbury, Much Marcle, Staunton, Tibberton and Wedderburn Bridge may now be impassable. Water is over the road at Upleadon Court.\nWe are closely monitoring the situation .\nTake care and avoid walking, cycling or driving through flood water.  \nThis message will be updated by 10:00AM on Monday 16 November or as the situation changes.\n" ,
+    "severity" : "Flood alert" ,
+    "severityLevel" : 3 ,
+    "timeMessageChanged" : "2026-11-15T16:35:00" ,
+    "timeRaised" : "2026-11-15T16:35:59" ,
+    "timeSeverityChanged" : "2026-11-15T16:35:00"
+  }
+  , { 
+    "@id" : "http://environment.data.gov.uk/flood-monitoring/id/floods/054WATBT1" ,
+    "description" : "The tidal Rivers Bure, Ant and Thurne" ,
+    "eaAreaName" : "East Anglia" ,
+    "eaRegionName" : "No longer used" ,
+    "floodArea" : { 
+      "@id" : "http://environment.data.gov.uk/flood-monitoring/id/floodAreas/054WATBT1" ,
+      "county" : "Norfolk" ,
+      "notation" : "054WATBT1" ,
+      "polygon" : "http://environment.data.gov.uk/flood-monitoring/id/floodAreas/054WATBT1/polygon" ,
+      "riverOrSea" : "Bure, Ant, Thurne"
+    }
+     ,
+    "floodAreaID" : "054WATBT1" ,
+    "isTidal" : true ,
+    "message" : "High water levels today may lead to flooding. Flooding is possible from 11am to 3pm today, Sunday 15 November. We expect to see high water levels around Potter Heigham, Wroxham boat yards and Ferry Road in Horning. Levels can take several hours to peak. River levels will remain high over the next couple of days. We are closely monitoring the situation. Avoid coastal roads and low lying roads near rivers, which may be flooded. This message will be updated by 10am Monday 16 November or as the situation changes.\n" ,
+    "severity" : "Flood alert" ,
+    "severityLevel" : 3 ,
+    "timeMessageChanged" : "2026-11-15T09:00:00" ,
+    "timeRaised" : "2026-11-15T09:00:34" ,
+    "timeSeverityChanged" : "2026-11-12T08:33:00"
+  }
+   ]
+}
+

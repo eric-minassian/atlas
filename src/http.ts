@@ -134,7 +134,17 @@ const FeedsHandlers = HttpApiBuilder.group(
       .handle('earthquakes', serveFeed(store, 'earthquakes'))
       .handle('fires', serveFeed(store, 'fires'))
       .handle('events', serveFeed(store, 'events'))
-      .handle('radar', serveFeed(store, 'radar'));
+      .handle('radar', serveFeed(store, 'radar'))
+      .handle('metars', serveFeed(store, 'metars'))
+      .handle('buoys', serveFeed(store, 'buoys'))
+      .handle('airQuality', serveFeed(store, 'airQuality'))
+      .handle('disasters', serveFeed(store, 'disasters'))
+      .handle('tsunamis', serveFeed(store, 'tsunamis'))
+      .handle('weatherAlerts', serveFeed(store, 'weatherAlerts'))
+      .handle('firePerimeters', serveFeed(store, 'firePerimeters'))
+      .handle('volcanoes', serveFeed(store, 'volcanoes'))
+      .handle('aurora', serveFeed(store, 'aurora'))
+      .handle('rivers', serveFeed(store, 'rivers'));
   }),
 );
 

@@ -1,0 +1,166 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.c48d3d358c70554975a1f0bb47386f91a5f1e2bf.001.1",
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -95.81,
+       27.9
+      ],
+      [
+       -94.1,
+       28.79
+      ],
+      [
+       -94.01,
+       28.53
+      ],
+      [
+       -94.96,
+       27.93
+      ],
+      [
+       -95.54,
+       27.66
+      ],
+      [
+       -95.81,
+       27.9
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.c48d3d358c70554975a1f0bb47386f91a5f1e2bf.001.1",
+    "id": "urn:oid:2.49.0.1.840.0.c48d3d358c70554975a1f0bb47386f91a5f1e2bf.001.1",
+    "areaDesc": "Waters from Freeport to Matagorda Ship Channel TX from 20 to 60 NM; Waters from High Island to Freeport TX from 20 to 60 NM",
+    "affectedZones": [
+     "https://api.weather.gov/zones/forecast/GMZ370",
+     "https://api.weather.gov/zones/forecast/GMZ375"
+    ],
+    "sent": "2026-11-15T18:50:00-06:00",
+    "effective": "2026-11-15T18:50:00-06:00",
+    "onset": "2026-11-15T18:50:00-06:00",
+    "expires": "2026-11-15T20:15:00-06:00",
+    "ends": "2026-11-15T20:15:00-06:00",
+    "status": "Actual",
+    "messageType": "Alert",
+    "category": "Met",
+    "severity": "Severe",
+    "certainty": "Likely",
+    "urgency": "Immediate",
+    "event": "Special Marine Warning",
+    "senderName": "NWS Houston/Galveston TX",
+    "headline": "Special Marine Warning issued November 15 at 6:50PM CST until November 15 at 8:15PM CST by NWS Houston/Galveston TX",
+    "description": "SMWHGX\n\nThe National Weather Service in League City has issued a\n\n* Special Marine Warning for...\nWaters from Freeport to Matagorda Ship Channel TX from 20 to 60\nNM...\nWaters from High Island to Freeport TX from 20 to 60 NM...\n\n* Until 815 PM CST.\n\n* At 648 PM CST, a line of severe thunderstorms capable of producing\nwaterspouts was located 40 NM off the Upper Texas Coast, moving\nsoutheast at 30 kn",
+    "instruction": "Move to safe harbor until hazardous weather passes.\n\nMove to safe harbor immediately as gusty winds and high waves are\nexpected.\n\nThunderstorms can produce sudden waterspouts. Waterspouts can easily\noverturn boats and create locally hazardous seas. Seek safe harbor\nimmediately.",
+    "response": "Avoid"
+   }
+  },
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.1a8185336a83b6af08748d190f8414755491940e.004.2",
+   "type": "Feature",
+   "geometry": null,
+   "properties": {
+    "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.1a8185336a83b6af08748d190f8414755491940e.004.2",
+    "id": "urn:oid:2.49.0.1.840.0.1a8185336a83b6af08748d190f8414755491940e.004.2",
+    "areaDesc": "Cape Halkett to Flaxman Island out to 15 NM",
+    "affectedZones": [
+     "https://api.weather.gov/zones/forecast/PKZ814"
+    ],
+    "sent": "2026-11-15T15:48:00-09:00",
+    "effective": "2026-11-15T15:48:00-09:00",
+    "onset": "2026-11-15T15:00:00-09:00",
+    "expires": "2026-11-16T06:00:00-09:00",
+    "ends": "2026-11-16T17:00:00-09:00",
+    "status": "Actual",
+    "messageType": "Alert",
+    "category": "Met",
+    "severity": "Severe",
+    "certainty": "Likely",
+    "urgency": "Expected",
+    "event": "Heavy Freezing Spray Warning",
+    "senderName": "NWS Fairbanks AK",
+    "headline": "Heavy Freezing Spray Warning issued November 15 at 3:48PM AKST until November 16 at 5:00PM AKST by NWS Fairbanks AK",
+    "description": "Arctic Alaska Coastal Waters out 100 NM\n\nWind forecasts reflect the predominant speed and direction\nexpected. Sea forecasts represent the average of the highest one-\nthird of the combined wind-wave and swell height.\n\n.TONIGHT...E winds 40 kt. Seas 8 ft. Blowing snow. Extreme\nfreezing spray.\n.MON...E winds 40 kt. Seas 8 ft. Blowing snow. Extreme freezing\nspray.\n.MON NIGHT...E winds 40 kt. Seas 8 ft",
+    "instruction": null,
+    "response": "Avoid"
+   }
+  },
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.c650962a35795a5b5db1dc5c4dab13cd39e0a606.001.1",
+   "type": "Feature",
+   "geometry": null,
+   "properties": {
+    "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.c650962a35795a5b5db1dc5c4dab13cd39e0a606.001.1",
+    "id": "urn:oid:2.49.0.1.840.0.c650962a35795a5b5db1dc5c4dab13cd39e0a606.001.1",
+    "areaDesc": "Chesapeake Bay from Sandy Point to North Beach MD; Chesapeake Bay from North Beach to Drum Point MD; Chesapeake Bay from Drum Point MD to Smith Point VA; Tidal Potomac from Cobb Island MD to Smith Point VA; Eastern Bay; Choptank River to Cambridge MD and the Little Choptank River; Patuxent River to Broomes Island MD; Tangier Sound and the inland waters surrounding Bloodsworth Island",
+    "affectedZones": [
+     "https://api.weather.gov/zones/forecast/ANZ532",
+     "https://api.weather.gov/zones/forecast/ANZ533",
+     "https://api.weather.gov/zones/forecast/ANZ534",
+     "https://api.weather.gov/zones/forecast/ANZ537",
+     "https://api.weather.gov/zones/forecast/ANZ540",
+     "https://api.weather.gov/zones/forecast/ANZ541",
+     "https://api.weather.gov/zones/forecast/ANZ542",
+     "https://api.weather.gov/zones/forecast/ANZ543"
+    ],
+    "sent": "2026-11-15T20:03:00-05:00",
+    "effective": "2026-11-15T20:03:00-05:00",
+    "onset": "2026-11-15T20:03:00-05:00",
+    "expires": "2026-11-16T04:15:00-05:00",
+    "ends": "2026-11-16T06:00:00-05:00",
+    "status": "Actual",
+    "messageType": "Alert",
+    "category": "Met",
+    "severity": "Minor",
+    "certainty": "Likely",
+    "urgency": "Expected",
+    "event": "Small Craft Advisory",
+    "senderName": "NWS Baltimore MD/Washington DC",
+    "headline": "Small Craft Advisory issued November 15 at 8:03PM EST until November 16 at 6:00AM EST by NWS Baltimore MD/Washington DC",
+    "description": "* WHAT...North winds 10 to 15 kt with gusts up to 20 kt.\n\n* WHERE...Chesapeake Bay from Sandy Point MD to Smith Point VA,\nTidal Potomac from Cobb Island MD to Smith Point VA, Eastern\nBay, Choptank River to Cambridge MD and the Little Choptank\nRiver, Patuxent River to Broomes Island MD, and Tangier Sound\nand the inland waters surrounding Bloodsworth Island.\n\n* WHEN...Until 6 AM EST Monday.\n\n* IMPAC",
+    "instruction": "Inexperienced mariners, especially those operating smaller\nvessels, should avoid navigating in hazardous conditions.",
+    "response": "Avoid"
+   }
+  },
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.a835357e9d006eb4576f8c35663448e6d4629dd5.013.1",
+   "type": "Feature",
+   "geometry": null,
+   "properties": {
+    "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.a835357e9d006eb4576f8c35663448e6d4629dd5.013.1",
+    "id": "urn:oid:2.49.0.1.840.0.a835357e9d006eb4576f8c35663448e6d4629dd5.013.1",
+    "areaDesc": "Cape Fairweather to Icy Cape out to 15 NM; Icy Cape to Cape Suckling from 15 to 80 NM",
+    "affectedZones": [
+     "https://api.weather.gov/zones/forecast/PKZ651",
+     "https://api.weather.gov/zones/forecast/PKZ672"
+    ],
+    "sent": "2026-11-15T14:57:00-09:00",
+    "effective": "2026-11-15T14:57:00-09:00",
+    "onset": "2026-11-15T14:57:00-09:00",
+    "expires": "2026-11-15T23:00:00-09:00",
+    "ends": "2026-11-17T03:00:00-09:00",
+    "status": "Actual",
+    "messageType": "Update",
+    "category": "Met",
+    "severity": "Minor",
+    "certainty": "Likely",
+    "urgency": "Expected",
+    "event": "Small Craft Advisory",
+    "senderName": "NWS Juneau AK",
+    "headline": "Small Craft Advisory issued November 15 at 2:57PM AKST until November 17 at 3:00AM AKST by NWS Juneau AK",
+    "description": "* WHAT...Southeast winds 20 to 30 kt with gusts up to 40 kt and\nseas 11 to 16 ft.\n\n* WHERE...Cape Fairweather to Icy Cape out to 15 NM and Icy Cape\nto Cape Suckling from 15 to 80 NM.\n\n* WHEN...Until 3 AM AKST Tuesday.\n\n* IMPACTS...Conditions will be hazardous to small craft.",
+    "instruction": "Inexperienced mariners, especially those operating smaller\nvessels, should avoid navigating in hazardous conditions.",
+    "response": "Avoid"
+   }
+  }
+ ],
+ "title": "Current watches, warnings, and advisories",
+ "updated": "2026-11-16T01:00:00+00:00"
+}

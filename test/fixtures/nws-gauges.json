@@ -1,0 +1,145 @@
+{
+ "displayFieldName": "gaugelid",
+ "features": [
+  {
+   "attributes": {
+    "gaugelid": "COCF1",
+    "status": "major",
+    "location": "Cocoa",
+    "waterbody": "St. Johns River",
+    "state": "FL",
+    "obstime": "2026-11-15 23:15:00",
+    "units": "ft",
+    "flood": "16",
+    "moderate": "16.5",
+    "major": "17",
+    "observed": "17.06",
+    "secvalue": "9.16",
+    "secunit": "kcfs",
+    "action": "15.8",
+    "latitude": 28.369444,
+    "longitude": -80.872778
+   }
+  },
+  {
+   "attributes": {
+    "gaugelid": "CCSA2",
+    "status": "moderate",
+    "location": "Dimond",
+    "waterbody": "Campbell Creek",
+    "state": "AK",
+    "obstime": "2026-11-15 23:45:00",
+    "units": "ft",
+    "flood": "20.5",
+    "moderate": "22.5",
+    "major": "",
+    "observed": "22.86",
+    "secvalue": "",
+    "secunit": "kcfs",
+    "action": "19.5",
+    "latitude": 61.138891,
+    "longitude": -149.925534
+   }
+  },
+  {
+   "attributes": {
+    "gaugelid": "ASTF1",
+    "status": "minor",
+    "location": "Astor",
+    "waterbody": "St. Johns River",
+    "state": "FL",
+    "obstime": "2026-11-15 23:30:00",
+    "units": "ft",
+    "flood": "2.3",
+    "moderate": "3",
+    "major": "4",
+    "observed": "2.57",
+    "secvalue": "",
+    "secunit": "kcfs",
+    "action": "2",
+    "latitude": 29.166667,
+    "longitude": -81.522222
+   }
+  },
+  {
+   "attributes": {
+    "gaugelid": "BOON4",
+    "status": "action",
+    "location": "Boonton",
+    "waterbody": "Rockaway River",
+    "state": "NJ",
+    "obstime": "2026-11-15 23:00:00",
+    "units": "ft",
+    "flood": "",
+    "moderate": "",
+    "major": "",
+    "observed": "305.64",
+    "secvalue": "",
+    "secunit": "kcfs",
+    "action": "305.25",
+    "latitude": 40.895278,
+    "longitude": -74.397778
+   }
+  },
+  {
+   "attributes": {
+    "gaugelid": "AACS2",
+    "status": "no_flooding",
+    "location": "",
+    "waterbody": "Cheyenne River",
+    "state": "SD",
+    "obstime": "2026-11-15 23:15:00",
+    "units": "ft",
+    "flood": "3207",
+    "moderate": "3209",
+    "major": "3211",
+    "observed": "3199.8",
+    "secvalue": "",
+    "secunit": "kcfs",
+    "action": "3206",
+    "latitude": 43.30577,
+    "longitude": -103.562797
+   }
+  },
+  {
+   "attributes": {
+    "gaugelid": "AAMC1",
+    "status": "not_defined",
+    "location": "Alameda tide gage",
+    "waterbody": "San Francisco Bay  Alameda tide gage",
+    "state": "CA",
+    "obstime": "2026-11-15 23:54:00",
+    "units": "ft",
+    "flood": "",
+    "moderate": "",
+    "major": "",
+    "observed": "6.43",
+    "secvalue": "",
+    "secunit": "kcfs",
+    "action": "",
+    "latitude": 37.771667,
+    "longitude": -122.298333
+   }
+  },
+  {
+   "attributes": {
+    "gaugelid": "ABCF1",
+    "status": "low_threshold",
+    "location": "",
+    "waterbody": "Apalachicola River",
+    "state": "FL",
+    "obstime": "2026-11-15 23:54:00",
+    "units": "ft",
+    "flood": "8.5",
+    "moderate": "10.5",
+    "major": "12.5",
+    "observed": "0.49",
+    "secvalue": "",
+    "secunit": "kcfs",
+    "action": "7",
+    "latitude": 29.845399,
+    "longitude": -85.032037
+   }
+  }
+ ]
+}

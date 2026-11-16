@@ -1,0 +1,165 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -160.1,
+     -8.1
+    ]
+   },
+   "properties": {
+    "eventtype": "TC",
+    "eventid": 1001350,
+    "episodeid": 2,
+    "eventname": "XAVIER-26",
+    "name": "Tropical Cyclone XAVIER-26",
+    "alertlevel": "Green",
+    "iscurrent": "true",
+    "country": "Cook Islands",
+    "fromdate": "2026-11-15T06:00:00",
+    "todate": "2026-11-15T18:00:00",
+    "url": {
+     "geometry": "https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=TC&eventid=1001350&episodeid=2",
+     "report": "https://www.gdacs.org/report.aspx?eventid=1001350&episodeid=2&eventtype=TC",
+     "details": "https://www.gdacs.org/gdacsapi/api/events/geteventdata?eventtype=TC&eventid=1001350"
+    },
+    "severitydata": {
+     "severity": 166.6656,
+     "severitytext": "Tropical Storm (maximum wind speed of 167 km/h)",
+     "severityunit": "km/h"
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     160.494,
+     52.4937
+    ]
+   },
+   "properties": {
+    "eventtype": "EQ",
+    "eventid": 1577554,
+    "episodeid": 1746839,
+    "eventname": "",
+    "name": "Earthquake in Russia",
+    "alertlevel": "Green",
+    "iscurrent": "true",
+    "country": "Russia",
+    "fromdate": "2026-11-15T22:38:22",
+    "todate": "2026-11-15T22:38:22",
+    "url": {
+     "geometry": "https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=EQ&eventid=1577554&episodeid=1746839",
+     "report": "https://www.gdacs.org/report.aspx?eventid=1577554&episodeid=1746839&eventtype=EQ",
+     "details": "https://www.gdacs.org/gdacsapi/api/events/geteventdata?eventtype=EQ&eventid=1577554"
+    },
+    "severitydata": {
+     "severity": 4.8,
+     "severitytext": "Magnitude 4.8M, Depth:10km",
+     "severityunit": "M"
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     11.1389,
+     43.4587
+    ]
+   },
+   "properties": {
+    "eventtype": "FL",
+    "eventid": 1104220,
+    "episodeid": 7,
+    "eventname": "",
+    "name": "Flood in Italy",
+    "alertlevel": "Green",
+    "iscurrent": "true",
+    "country": "Italy",
+    "fromdate": "2026-10-07T01:00:00",
+    "todate": "2026-11-15T01:00:00",
+    "url": {
+     "geometry": "https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=FL&eventid=1104220&episodeid=7",
+     "report": "https://www.gdacs.org/report.aspx?eventid=1104220&episodeid=7&eventtype=FL",
+     "details": "https://www.gdacs.org/gdacsapi/api/events/geteventdata?eventtype=FL&eventid=1104220"
+    },
+    "severitydata": {
+     "severity": 0.0,
+     "severitytext": "Magnitude 0 ",
+     "severityunit": ""
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     125.0414,
+     -17.3012
+    ]
+   },
+   "properties": {
+    "eventtype": "WF",
+    "eventid": 1033881,
+    "episodeid": 1,
+    "eventname": "",
+    "name": "Forest fires in Australia",
+    "alertlevel": "Green",
+    "iscurrent": "true",
+    "country": "Australia",
+    "fromdate": "2026-11-12T00:00:00",
+    "todate": "2026-11-15T00:00:00",
+    "url": {
+     "geometry": "https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=WF&eventid=1033881&episodeid=1",
+     "report": "https://www.gdacs.org/report.aspx?eventid=1033881&episodeid=1&eventtype=WF",
+     "details": "https://www.gdacs.org/gdacsapi/api/events/geteventdata?eventtype=WF&eventid=1033881"
+    },
+    "severitydata": {
+     "severity": 5275.0,
+     "severitytext": "Green impact for forestfire in 5275 ha",
+     "severityunit": "ha"
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     7.0227,
+     12.8563
+    ]
+   },
+   "properties": {
+    "eventtype": "WF",
+    "eventid": 1033880,
+    "episodeid": 1,
+    "eventname": "",
+    "name": "Forest fires in Nigeria, Niger",
+    "alertlevel": "Green",
+    "iscurrent": "true",
+    "country": "Nigeria, Niger",
+    "fromdate": "2026-11-12T00:00:00",
+    "todate": "2026-11-15T00:00:00",
+    "url": {
+     "geometry": "https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=WF&eventid=1033880&episodeid=1",
+     "report": "https://www.gdacs.org/report.aspx?eventid=1033880&episodeid=1&eventtype=WF",
+     "details": "https://www.gdacs.org/gdacsapi/api/events/geteventdata?eventtype=WF&eventid=1033880"
+    },
+    "severitydata": {
+     "severity": 5001.0,
+     "severitytext": "Green impact for forestfire in 5001 ha",
+     "severityunit": "ha"
+    }
+   }
+  }
+ ]
+}
