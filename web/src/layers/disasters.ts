@@ -11,6 +11,7 @@ import { feeds } from '../../../src/catalog.ts';
 import type { Disaster, DisasterAlert, TsunamiBulletin } from '../../../src/domain.ts';
 import { feedPoller, type Snapshot } from '../data/feeds.ts';
 import type { PickId } from '../globe/globe.ts';
+import { followGround } from '../globe/ground.ts';
 import { formatAge, formatLatLon, formatUtc } from '../lib/format.ts';
 import { type Area, boundsOf, GroundShapes, type Line } from './areas.ts';
 import type { Details, Filter, LayerDef, LayerHandle, SearchHit } from './types.ts';
@@ -150,6 +151,7 @@ export const disasterLayer: LayerDef = {
   filters: kinds.map(({ id, label, color }) => ({ id, label, color })),
   create(globe): LayerHandle {
     const badges = globe.scene.primitives.add(new BillboardCollection({ scene: globe.scene }));
+    const ground = followGround(globe, [badges]);
     const shapes = new GroundShapes(globe, 'disasters');
     const selection = new GroundShapes(globe, 'disasters');
     let events: ReadonlyArray<Disaster> = [];
@@ -314,6 +316,7 @@ export const disasterLayer: LayerDef = {
         return n;
       },
       destroy() {
+        ground.stop();
         for (const stop of stops) stop();
         shapes.destroy();
         selection.destroy();

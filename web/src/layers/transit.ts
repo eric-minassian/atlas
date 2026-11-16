@@ -14,6 +14,7 @@ import { callApi } from '../client.ts';
 import { AreaTiles } from '../data/area.ts';
 import { layerStatus } from '../data/status.ts';
 import type { PickId } from '../globe/globe.ts';
+import { followGround } from '../globe/ground.ts';
 import { formatAge, formatBearing, formatInt, formatLatLon } from '../lib/format.ts';
 import { advance } from '../lib/motion.ts';
 import type { Details, Filter, LayerDef, LayerHandle, SearchHit } from './types.ts';
@@ -34,7 +35,6 @@ const modeById = new Map(modes.map((m) => [m.id, { ...m, cesium: Color.fromCssCo
 
 /** Reported positions are carried forward at most this long. */
 const MAX_EXTRAPOLATION_S = 120;
-const UPDATE_MS = 500;
 
 /** A dot with a notch toward the direction of travel; billboards tint it. */
 const headingIcon = `data:image/svg+xml,${encodeURIComponent(
@@ -98,6 +98,7 @@ export const transitLayer: LayerDef = {
   filters: modes,
   create(globe): LayerHandle {
     const billboards = globe.scene.primitives.add(new BillboardCollection({ scene: globe.scene }));
+    const ground = followGround(globe, [billboards]);
     let vehicles = new Map<string, { vehicle: Vehicle; billboard: Billboard }>();
     let shown: ReadonlySet<string> = new Set(modes.map((m) => m.id));
     let selected: string | undefined;
@@ -109,9 +110,16 @@ export const transitLayer: LayerDef = {
       if (age <= 0 || age > MAX_EXTRAPOLATION_S) return v;
       return advance(v.lat, v.lon, v.bearing, v.speed, age);
     };
-    const positionOf = (v: Vehicle, now: number, result = scratch) => {
+    /** Clamped on terrain; under Photorealistic 3D, at the height it was last seated at. */
+    const positionOf = (v: Vehicle, now: number, result = scratch, billboard?: Billboard) => {
       const p = where(v, now);
-      return Cartesian3.fromDegrees(p.lon, p.lat, 0, undefined, result);
+      return Cartesian3.fromDegrees(
+        p.lon,
+        p.lat,
+        billboard ? ground.heightOf(billboard) : 0,
+        undefined,
+        result,
+      );
     };
 
     const style = (key: string) => {
@@ -146,7 +154,7 @@ export const transitLayer: LayerDef = {
           if (existing && (existing.vehicle.bearing !== null) !== directional)
             billboard.image = directional ? headingIcon : dotIcon;
           billboard.rotation = directional ? -CesiumMath.toRadians(vehicle.bearing ?? 0) : 0;
-          billboard.position = positionOf(vehicle, now);
+          billboard.position = positionOf(vehicle, now, scratch, billboard);
           next.set(vehicle.key, { vehicle, billboard });
         }
       for (const [key, { billboard }] of vehicles) if (!next.has(key)) billboards.remove(billboard);
@@ -188,13 +196,15 @@ export const transitLayer: LayerDef = {
         }),
     });
 
-    const animate = setInterval(() => {
+    // Every frame rather than on a timer: Cesium rebuilds a billboard collection's buffers each time
+    // updates start or stop arriving between frames, so a timer would rebuild them twice per tick.
+    const stopAnimating = globe.scene.preRender.addEventListener(() => {
       if (!billboards.show || vehicles.size === 0) return;
       const now = globe.now();
       for (const { vehicle, billboard } of vehicles.values())
         if (billboard.show && vehicle.bearing !== null && vehicle.speed)
-          billboard.position = positionOf(vehicle, now);
-    }, UPDATE_MS);
+          billboard.position = positionOf(vehicle, now, scratch, billboard);
+    });
 
     const describe = (key: string): Details | undefined => {
       const vehicle = vehicles.get(key)?.vehicle;
@@ -304,7 +314,8 @@ export const transitLayer: LayerDef = {
         return hits;
       },
       destroy() {
-        clearInterval(animate);
+        ground.stop();
+        stopAnimating();
         tiles.destroy();
         globe.scene.primitives.remove(billboards);
       },

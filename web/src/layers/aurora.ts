@@ -77,6 +77,9 @@ export const auroraLayer: LayerDef = {
   id: 'aurora',
   title: 'Aurora forecast',
   category: 'space',
+  // Imagery drapes over the globe, which Photorealistic 3D hides. (Cesium can drape it over 3D tiles,
+  // but maps every tile's vertices back from the GPU to do it: too slow while a city streams in.)
+  basemaps: ['satellite'],
   description:
     'Where the aurora is likely to be seen overhead in the next 30 to 90 minutes, from NOAA’s OVATION model, updated every 5 minutes.',
   source: feeds.aurora.source,
@@ -132,7 +135,7 @@ export const auroraLayer: LayerDef = {
         }),
         { alpha: opacity },
       );
-      globe.addImagery(next, { data: true });
+      globe.addImagery(next);
       const previous = layer;
       layer = next;
       if (previous) setTimeout(() => globe.removeImagery(previous), 1000);

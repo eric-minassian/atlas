@@ -212,7 +212,8 @@ export class PanoramaViewer {
       fov: camera.frustum instanceof PerspectiveFrustum ? camera.frustum.fov : undefined,
     };
     this.globe.follow(undefined);
-    this.ground = this.globe.heightAt(pano.lon, pano.lat) ?? 0;
+    // A terrain sample: under Photorealistic 3D there's no globe to ask.
+    this.ground = (await this.globe.groundHeights([pano]))[0] ?? 0;
     const heading = camera.heading;
     await new Promise<void>((resolve) => {
       camera.flyTo({

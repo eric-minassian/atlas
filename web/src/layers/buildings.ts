@@ -78,8 +78,10 @@ export const buildingsLayer: LayerDef = {
         enableShowOutline: false,
       })
         .then((created) => {
-          // The camera stops at rooftops instead of passing through them.
-          created.enableCollision = true;
+          // No collision: with it, every marker clamped to the ground is ray-cast against building
+          // geometry read back from the GPU (seconds per frame in a dense city), and lands on a
+          // roof. Without it, markers sit on the street and the camera may pass through walls.
+          created.enableCollision = false;
           tileset = globe.scene.primitives.add(created);
           created.show = visible;
           return created;

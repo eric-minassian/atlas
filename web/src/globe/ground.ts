@@ -1,4 +1,13 @@
-import { Cartesian3 } from 'cesium';
+import {
+  type Billboard,
+  type BillboardCollection,
+  Cartesian3,
+  Cartographic,
+  HeightReference,
+  type Label,
+  type LabelCollection,
+  Math as CesiumMath,
+} from 'cesium';
 import { contains } from '../../../src/area.ts';
 import type { Globe } from './globe.ts';
 
@@ -6,19 +15,20 @@ import type { Globe } from './globe.ts';
 const NEAR = 400_000;
 /**
  * Items re-seated per pass, nearest the view's center first. Each lookup is a
- * ray cast against a terrain tile (or a render of the 3D tiles on the
- * Photorealistic base map), so the budget keeps a pass to a few milliseconds.
+ * ray cast against a loaded terrain tile (or, under Photorealistic 3D, a
+ * terrain sample), so the budget keeps a pass short.
  */
-const BUDGET = { satellite: 1500, photoreal: 120 } as const;
+const BUDGET = 1500;
 /** Waits this long after the last trigger: while the camera flies or terrain streams, nothing runs. */
 const DEBOUNCE_MS = 300;
 
 /**
  * Things a layer draws on the ground, by index. Point primitives can't clamp
  * themselves to terrain (billboards and labels can: give those
- * `heightReference: CLAMP_TO_GROUND` instead), so layers with many points hand
- * them to `trackGround`, which seats the ones in view on the ground whenever the
- * camera settles nearby or terrain finishes loading.
+ * `heightReference: CLAMP_TO_GROUND` and hand their collection to
+ * `followGround`), so layers with many points hand them to `trackGround`, which
+ * seats the ones in view on the ground whenever the camera settles nearby or
+ * terrain loads.
  */
 export interface GroundSet {
   readonly size: number;
@@ -36,24 +46,45 @@ export interface GroundTracker {
   stop(): void;
 }
 
+/** Runs `pass` a moment after the view settles, the base map changes or terrain finishes loading. */
+const onGroundChanges = (globe: Globe, pass: () => Promise<void>): GroundTracker => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const schedule = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => void pass(), DEBOUNCE_MS);
+  };
+  const stops = [
+    globe.viewSettled.add(schedule),
+    globe.basemapChanged.add(schedule),
+    // Fires as terrain tiles stream in; zero means everything in view has loaded.
+    globe.scene.globe.tileLoadProgressEvent.addEventListener((queued: number) => {
+      if (queued === 0 && globe.view.height <= NEAR) schedule();
+    }),
+  ];
+  schedule();
+  return {
+    refresh: schedule,
+    stop() {
+      clearTimeout(timer);
+      for (const stop of stops) stop();
+    },
+  };
+};
+
 /** Keeps `set` on the ground as the view and terrain change. */
 export const trackGround = (globe: Globe, set: () => GroundSet | undefined): GroundTracker => {
   const scratch = new Cartesian3();
-  let timer: ReturnType<typeof setTimeout> | undefined;
   let generation = 0;
-
-  const seat = async () => {
-    timer = undefined;
+  return onGroundChanges(globe, async () => {
     const items = set();
     const { bounds, height, center } = globe.view;
     if (!items || !bounds || height > NEAR) return;
     const pass = ++generation;
     let indices: number[] = [];
     for (let i = 0; i < items.size; i++) if (contains(bounds, items.lon(i), items.lat(i))) indices.push(i);
-    const budget = BUDGET[globe.basemap];
-    if (indices.length > budget && center) {
+    if (indices.length > BUDGET && center) {
       const d = (i: number) => (items.lon(i) - center.lon) ** 2 + (items.lat(i) - center.lat) ** 2;
-      indices = indices.toSorted((a, b) => d(a) - d(b)).slice(0, budget);
+      indices = indices.toSorted((a, b) => d(a) - d(b)).slice(0, BUDGET);
     }
     const heights = await globe.groundHeights(indices.map((i) => ({ lon: items.lon(i), lat: items.lat(i) })));
     // A newer pass (or a new snapshot) superseded this one while heights were sampled.
@@ -72,27 +103,70 @@ export const trackGround = (globe: Globe, set: () => GroundSet | undefined): Gro
         ),
       );
     });
-  };
-  const schedule = () => {
-    clearTimeout(timer);
-    timer = setTimeout(() => void seat(), DEBOUNCE_MS);
+  });
+};
+
+export interface GroundFollower extends GroundTracker {
+  /** The ground height an item was last seated at under Photorealistic 3D (0 otherwise), for items a layer moves. */
+  heightOf(item: Billboard | Label): number;
+}
+
+/**
+ * Keeps billboards and labels that clamp to the ground on it when there's no
+ * globe to clamp to. Under Photorealistic 3D the globe is hidden and Google's
+ * tiles don't take part in clamping (ray-casting them reads their geometry
+ * back from the GPU), so items set to `CLAMP_TO_GROUND` get explicit heights
+ * from terrain samples instead, and clamp again when the satellite base map
+ * returns.
+ */
+export const followGround = (
+  globe: Globe,
+  collections: ReadonlyArray<BillboardCollection | LabelCollection>,
+): GroundFollower => {
+  /** The ground each switched item was seated at. */
+  const seated = new WeakMap<Billboard | Label, number>();
+  /** Items switched from clamping to explicit heights (weak: layers remove items freely). */
+  const converted = new WeakSet<Billboard | Label>();
+  const carto = new Cartographic();
+  let generation = 0;
+
+  const each = (visit: (item: Billboard | Label) => void) => {
+    for (const collection of collections)
+      for (let i = 0; i < collection.length; i++) visit(collection.get(i));
   };
 
-  const stops = [
-    globe.viewSettled.add(schedule),
-    globe.basemapChanged.add(schedule),
-    // Fires as terrain tiles stream in; zero means everything in view has loaded.
-    globe.scene.globe.tileLoadProgressEvent.addEventListener((queued: number) => {
-      if (queued === 0 && globe.view.height <= NEAR) schedule();
-    }),
-  ];
-  schedule();
-  return {
-    refresh: schedule,
-    stop() {
-      clearTimeout(timer);
-      generation++;
-      for (const stop of stops) stop();
-    },
-  };
+  const tracker = onGroundChanges(globe, async () => {
+    const pass = ++generation;
+    if (globe.basemap === 'satellite') {
+      each((item) => {
+        if (!converted.has(item)) return;
+        item.heightReference = HeightReference.CLAMP_TO_GROUND;
+        converted.delete(item);
+      });
+      return;
+    }
+    const { bounds, height } = globe.view;
+    if (!bounds || height > NEAR) return;
+    const wanted: Array<{ item: Billboard | Label; lon: number; lat: number }> = [];
+    each((item) => {
+      if (item.heightReference === HeightReference.CLAMP_TO_GROUND) {
+        item.heightReference = HeightReference.NONE;
+        converted.add(item);
+      }
+      if (!converted.has(item) || wanted.length >= BUDGET) return;
+      Cartographic.fromCartesian(item.position, undefined, carto);
+      const lon = CesiumMath.toDegrees(carto.longitude);
+      const lat = CesiumMath.toDegrees(carto.latitude);
+      if (contains(bounds, lon, lat)) wanted.push({ item, lon, lat });
+    });
+    const heights = await globe.groundHeights(wanted);
+    if (pass !== generation || globe.basemap !== 'photoreal') return;
+    wanted.forEach(({ item, lon, lat }, k) => {
+      const ground = heights[k];
+      if (ground === undefined) return;
+      seated.set(item, ground);
+      item.position = Cartesian3.fromDegrees(lon, lat, ground);
+    });
+  });
+  return { ...tracker, heightOf: (item) => seated.get(item) ?? 0 };
 };

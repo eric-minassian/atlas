@@ -33,7 +33,7 @@ const SELECTED = Color.WHITE;
 const MOVING_KNOTS = 0.5;
 /** Positions are carried forward at most this long; a vessel can turn in that time. */
 const MAX_EXTRAPOLATION_S = 15 * 60;
-const UPDATE_MS = 1000;
+const ANIMATE_BELOW = 2_000_000;
 
 /** A hull seen from above, bow up; billboards tint it. */
 const hullIcon = `data:image/svg+xml,${encodeURIComponent(
@@ -177,14 +177,19 @@ export const shipLayer: LayerDef = {
       ground.refresh();
     };
 
-    const animate = setInterval(() => {
-      if (!data || !billboards.show) return;
+    // Every frame rather than on a timer: Cesium rebuilds a billboard collection's buffers each time
+    // updates start or stop arriving between frames, so a timer would rebuild them twice per tick.
+    // From afar a ship moves less than a pixel in minutes: only animate up close, and only what's in view.
+    const stopAnimating = globe.scene.preRender.addEventListener(() => {
+      const { height, bounds } = globe.view;
+      if (!data || !billboards.show || height > ANIMATE_BELOW || !bounds) return;
       const now = globe.now();
       for (const i of moving) {
         const b = items[i];
-        if (b?.show) b.position = positionOf(i, now, scratch);
+        if (b?.show && contains(bounds, data.lon[i] as number, data.lat[i] as number))
+          b.position = positionOf(i, now, scratch);
       }
-    }, UPDATE_MS);
+    });
 
     const describe = (key: string): Details | undefined => {
       const i = byMmsi.get(Number(key));
@@ -299,7 +304,7 @@ export const shipLayer: LayerDef = {
         return hits;
       },
       destroy() {
-        clearInterval(animate);
+        stopAnimating();
         ground.stop();
         unsubscribe?.();
         globe.scene.primitives.remove(billboards);

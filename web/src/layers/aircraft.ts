@@ -24,7 +24,6 @@ const NM = 1852;
 const POLL_MS = 10_000;
 /** Beyond this, positions stay where they were last reported rather than being extrapolated. */
 const MAX_EXTRAPOLATION_S = 120;
-const UPDATE_MS = 200;
 
 const bands = [
   { label: 'On ground', color: '#8b919b', below: 0 },
@@ -178,7 +177,9 @@ export const aircraftLayer: LayerDef = {
 
     const poll = setInterval(() => void refresh(), POLL_MS);
     const removeMoveEnd = globe.viewSettled.add(() => void refresh());
-    const animate = setInterval(() => {
+    // Every frame rather than on a timer: Cesium rebuilds a billboard collection's buffers each time
+    // updates start or stop arriving between frames, so a timer would rebuild them twice per tick.
+    const stopAnimating = globe.scene.preRender.addEventListener(() => {
       if (!data || !visible) return;
       const now = globe.now();
       for (let i = 0; i < items.length; i++) {
@@ -186,7 +187,7 @@ export const aircraftLayer: LayerDef = {
         const b = items[i];
         if (b && position) b.position = position;
       }
-    }, UPDATE_MS);
+    });
 
     const describe = (icao: string): Details | undefined => {
       const i = byIcao.get(icao);
@@ -300,7 +301,7 @@ export const aircraftLayer: LayerDef = {
       },
       destroy() {
         clearInterval(poll);
-        clearInterval(animate);
+        stopAnimating();
         removeMoveEnd();
         globe.scene.primitives.remove(billboards);
         globe.scene.primitives.remove(area);

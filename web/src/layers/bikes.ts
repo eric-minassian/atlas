@@ -17,6 +17,7 @@ import { callApi } from '../client.ts';
 import { AreaTiles } from '../data/area.ts';
 import { layerStatus } from '../data/status.ts';
 import type { PickId } from '../globe/globe.ts';
+import { followGround } from '../globe/ground.ts';
 import { formatAge, formatInt, formatLatLon } from '../lib/format.ts';
 import type { Details, LayerDef, LayerHandle, SearchHit } from './types.ts';
 
@@ -91,6 +92,7 @@ export const bikeLayer: LayerDef = {
   create(globe): LayerHandle {
     const billboards = globe.scene.primitives.add(new BillboardCollection({ scene: globe.scene }));
     const labels = globe.scene.primitives.add(new LabelCollection({ scene: globe.scene }));
+    const ground = followGround(globe, [billboards, labels]);
     let stations = new Map<string, Station>();
     let selected: string | undefined;
     const billboardOf = new Map<string, ReturnType<typeof billboards.add>>();
@@ -252,6 +254,7 @@ export const bikeLayer: LayerDef = {
         return hits;
       },
       destroy() {
+        ground.stop();
         tiles.destroy();
         globe.scene.primitives.remove(billboards);
         globe.scene.primitives.remove(labels);

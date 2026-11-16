@@ -14,6 +14,7 @@ import {
 } from 'cesium';
 import { type Bounds, contains } from '../../../src/area.ts';
 import type { Globe, PickId } from '../globe/globe.ts';
+import { followGround, type GroundFollower } from '../globe/ground.ts';
 import { Listeners } from '../lib/listeners.ts';
 
 /** A white disc with a dark rim; billboards tint it. */
@@ -79,6 +80,7 @@ export class GroundPins<T> {
   private changePending = false;
   private readonly billboards: BillboardCollection;
   private readonly labels: LabelCollection;
+  private readonly ground: GroundFollower;
   private readonly entries = new Map<string, Entry<T>>();
   private selected: string | undefined;
 
@@ -89,6 +91,7 @@ export class GroundPins<T> {
   ) {
     this.billboards = globe.scene.primitives.add(new BillboardCollection({ scene: globe.scene }));
     this.labels = globe.scene.primitives.add(new LabelCollection({ scene: globe.scene }));
+    this.ground = followGround(globe, [this.billboards, this.labels]);
   }
 
   /** Replaces the items, keeping the markers of keys that stay. */
@@ -220,6 +223,7 @@ export class GroundPins<T> {
   }
 
   destroy(): void {
+    this.ground.stop();
     this.globe.scene.primitives.remove(this.billboards);
     this.globe.scene.primitives.remove(this.labels);
   }

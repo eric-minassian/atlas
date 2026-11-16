@@ -23,6 +23,7 @@ import {
   Math as CesiumMath,
   Matrix4,
   Rectangle,
+  sampleTerrain,
   type Scene,
   ScreenSpaceEventHandler,
   ScreenSpaceEventType,
@@ -110,6 +111,9 @@ export const pitchFor = (height: number): number => {
   return -CesiumMath.PI_OVER_TWO + (STREET_PITCH + CesiumMath.PI_OVER_TWO) * eased;
 };
 
+/** Terrain level heights are sampled at without the globe: about 20 m apart, plenty for a marker. */
+const TERRAIN_SAMPLE_LEVEL = 13;
+
 /** Below this camera height, 3D models are lit from the viewer rather than the Sun. */
 const VIEWER_LIGHT_BELOW = 200_000;
 
@@ -134,8 +138,6 @@ export class Globe {
   private photoreal: Cesium3DTileset | undefined;
   private photorealLoading: Promise<Cesium3DTileset | undefined> | undefined;
   private readonly pickers = new Set<Picker>();
-  /** Data imagery layers and their twins on the Photorealistic 3D tiles, once those exist. */
-  private readonly draped = new Map<ImageryLayer, ImageryLayer | undefined>();
   private isolated = false;
   private readonly handler: ScreenSpaceEventHandler;
   private following: (() => Cartesian3 | undefined) | undefined;
@@ -273,17 +275,6 @@ export class Globe {
         this.viewSettled.emit(this.currentView);
       }),
       scene.preRender.addEventListener(() => this.updateFollow()),
-      // Twins follow their layer's opacity and visibility (layers fade with height, sliders move).
-      scene.preRender.addEventListener(() => {
-        for (const [layer, twin] of this.draped) {
-          if (!twin) {
-            if (this.photoreal) this.drape(layer, this.photoreal);
-            continue;
-          }
-          twin.alpha = layer.alpha;
-          twin.show = layer.show;
-        }
-      }),
     );
     this.currentView = this.measureView();
 
@@ -368,11 +359,13 @@ export class Globe {
     this.photorealLoading ??= createGooglePhotorealistic3DTileset(
       // Place search uses Google's geocoder while this base map is on (see the search dialog).
       { onlyUsingWithGoogleGeocoder: true },
-      { showCreditsOnScreen: true, enableCollision: true, maximumScreenSpaceError: 8 },
+      // Cesium turns collision on for these tiles by default. With it, every marker clamped to the
+      // ground is ray-cast against tile geometry read back from the GPU (seconds per frame while a
+      // city streams in); markers get terrain heights instead (`followGround`).
+      { showCreditsOnScreen: true, maximumScreenSpaceError: 8, enableCollision: false },
     )
       .then((tileset) => {
         this.photoreal = this.scene.primitives.add(tileset);
-        for (const layer of this.draped.keys()) this.drape(layer, tileset);
         return tileset;
       })
       .catch((error: unknown) => {
@@ -383,35 +376,15 @@ export class Globe {
     return this.photorealLoading;
   }
 
-  /**
-   * Adds `layer` to the imagery stack, above the base map and below the
-   * reference overlay. `data` layers (weather, coverage: things drawn on a
-   * map, not a map) are also draped over the Photorealistic 3D tiles, where
-   * Google's terms allow third-party data; map imagery isn't.
-   */
-  addImagery(layer: ImageryLayer, options: { readonly data?: boolean } = {}): void {
+  /** Adds `layer` to the imagery stack, above the base map and below the reference overlay. */
+  addImagery(layer: ImageryLayer): void {
     const layers = this.scene.globe.imageryLayers;
     const firstReference = this.reference.map((r) => layers.indexOf(r)).filter((i) => i >= 0);
     layers.add(layer, firstReference.length > 0 ? Math.min(...firstReference) : undefined);
-    if (options.data) {
-      this.draped.set(layer, undefined);
-      if (this.photoreal) this.drape(layer, this.photoreal);
-    }
   }
 
   removeImagery(layer: ImageryLayer): void {
-    const twin = this.draped.get(layer);
-    if (twin && this.photoreal) this.photoreal.imageryLayers.remove(twin, true);
-    this.draped.delete(layer);
     this.scene.globe.imageryLayers.remove(layer, true);
-  }
-
-  /** A twin of a data layer on the 3D tiles: an imagery layer belongs to one collection only. */
-  private drape(layer: ImageryLayer, tileset: Cesium3DTileset) {
-    if (this.draped.get(layer) || !layer.ready) return;
-    const twin = new ImageryLayer(layer.imageryProvider, { alpha: layer.alpha, show: layer.show });
-    tileset.imageryLayers.add(twin);
-    this.draped.set(layer, twin);
   }
 
   setReference(visible: boolean): void {
@@ -443,8 +416,7 @@ export class Globe {
     return () => {
       this.isolated = false;
       for (const primitive of hidden) if (!primitive.isDestroyed?.()) primitive.show = true;
-      // The base map may have changed meanwhile; the globe follows it, not what it was.
-      scene.globe.show = globeShown && this.currentBasemap === 'satellite';
+      scene.globe.show = globeShown;
     };
   }
 
@@ -460,31 +432,28 @@ export class Globe {
    * when nothing is loaded there yet.
    */
   heightAt(lon: number, lat: number): number | undefined {
-    // Hidden (inside a panorama), neither the globe nor the tiles can answer.
-    if (this.isolated) return undefined;
-    const c = Cartographic.fromDegrees(lon, lat);
-    if (this.currentBasemap === 'photoreal')
-      return this.scene.sampleHeightSupported ? this.scene.sampleHeight(c) : undefined;
-    return this.scene.globe.getHeight(c);
+    // Hidden (inside a panorama, or under Photorealistic 3D), the globe can't answer.
+    if (this.isolated || !this.scene.globe.show) return undefined;
+    return this.scene.globe.getHeight(Cartographic.fromDegrees(lon, lat));
   }
 
   /**
-   * Ground heights for many points at once. On terrain it's a lookup per
-   * point; on Photorealistic 3D, one batched sampling of the tiles, which
-   * renders, so callers keep batches small.
+   * Ground heights for many points at once: from the loaded terrain, or with
+   * the globe hidden under Photorealistic 3D, sampled from the terrain data
+   * (Google's tiles sit on the same ground). Sampling the tiles themselves
+   * would render the scene once per point.
    */
   async groundHeights(
     points: ReadonlyArray<{ readonly lon: number; readonly lat: number }>,
   ): Promise<Array<number | undefined>> {
     if (this.isolated || points.length === 0) return points.map(() => undefined);
-    if (this.currentBasemap === 'photoreal') {
-      if (!this.scene.sampleHeightSupported) return points.map(() => undefined);
-      const sampled = await this.scene
-        .sampleHeightMostDetailed(points.map((p) => Cartographic.fromDegrees(p.lon, p.lat)))
-        .catch(() => []);
-      return points.map((_, i) => sampled[i]?.height);
-    }
-    return points.map((p) => this.scene.globe.getHeight(Cartographic.fromDegrees(p.lon, p.lat)));
+    if (this.scene.globe.show) return points.map((p) => this.heightAt(p.lon, p.lat));
+    const sampled = await sampleTerrain(
+      this.scene.terrainProvider,
+      TERRAIN_SAMPLE_LEVEL,
+      points.map((p) => Cartographic.fromDegrees(p.lon, p.lat)),
+    ).catch(() => []);
+    return points.map((_, i) => sampled[i]?.height);
   }
 
   /** Lets a layer resolve picks of things it can't tag with a `PickId` (3D tile features). */

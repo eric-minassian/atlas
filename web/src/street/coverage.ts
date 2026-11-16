@@ -150,6 +150,9 @@ export const streetLevelLayer: LayerDef = {
   },
   defaultVisible: true,
   range: { max: 2_000 },
+  // Imagery drapes over the globe, which Photorealistic 3D hides. (Cesium can drape it over 3D tiles,
+  // but maps every tile's vertices back from the GPU to do it: too slow while a city streams in.)
+  basemaps: ['satellite'],
   filters: coverageFilters,
   // Mapillary's coverage tiles are heavy in cities (about 1.3 MB each), so its lines are opt-in.
   // Its panoramas are still found when you click a street.
@@ -166,7 +169,7 @@ export const streetLevelLayer: LayerDef = {
       const sources = all.filter((s) => shown.has(s.id));
       if (!visible || sources.length === 0) return;
       layer = new ImageryLayer(new CoverageProvider(sources));
-      globe.addImagery(layer, { data: true });
+      globe.addImagery(layer);
     };
     return {
       setVisible(next) {

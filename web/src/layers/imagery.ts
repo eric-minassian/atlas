@@ -58,8 +58,6 @@ const imageryHandle = (
     readonly opacity: number;
     readonly refreshMs?: number;
     readonly fade?: Fade;
-    /** Data on a map rather than a map itself: also drawn over Photorealistic 3D. */
-    readonly data?: boolean;
   },
 ): LayerHandle => {
   let layer: ImageryLayer | undefined;
@@ -74,7 +72,7 @@ const imageryHandle = (
 
   const mount = () => {
     const next = new ImageryLayer(retrying(makeProvider()), { alpha: alpha() });
-    globe.addImagery(next, { data: options.data ?? false });
+    globe.addImagery(next);
     const previous = layer;
     layer = next;
     // Let the new frame's tiles arrive before the old ones go, so it doesn't flash.
@@ -181,6 +179,9 @@ export const cloudLayer: LayerDef = {
   opacity: 0.85,
   // At ~5 km per pixel the mosaic is only haze over a city.
   range: { min: 40_000 },
+  // Imagery drapes over the globe, which Photorealistic 3D hides. (Cesium can drape it over 3D tiles,
+  // but maps every tile's vertices back from the GPU to do it: too slow while a city streams in.)
+  basemaps: ['satellite'],
   create(globe) {
     return imageryHandle(
       globe,
@@ -191,7 +192,7 @@ export const cloudLayer: LayerDef = {
           maximumLevel: 5,
           credit: new Credit('NOAA nowCOAST'),
         }),
-      { opacity: 0.85, refreshMs: 30 * 60_000, fade: { from: 600_000, to: 50_000, floor: 0.15 }, data: true },
+      { opacity: 0.85, refreshMs: 30 * 60_000, fade: { from: 600_000, to: 50_000, floor: 0.15 } },
     );
   },
 };
@@ -205,6 +206,9 @@ export const radarLayer: LayerDef = {
   feed: 'radar',
   defaultVisible: true,
   opacity: 0.6,
+  // Imagery drapes over the globe, which Photorealistic 3D hides. (Cesium can drape it over 3D tiles,
+  // but maps every tile's vertices back from the GPU to do it: too slow while a city streams in.)
+  basemaps: ['satellite'],
   create(globe) {
     let frame = '';
     let host = '';
@@ -231,7 +235,7 @@ export const radarLayer: LayerDef = {
         ),
         { alpha: alpha() },
       );
-      globe.addImagery(next, { data: true });
+      globe.addImagery(next);
       const previous = layer;
       layer = next;
       if (previous) setTimeout(() => globe.removeImagery(previous), 4000);
@@ -280,12 +284,14 @@ export const precipitationLayer: LayerDef = {
   source: nasaGibs,
   defaultVisible: false,
   opacity: 0.8,
+  // Imagery drapes over the globe, which Photorealistic 3D hides. (Cesium can drape it over 3D tiles,
+  // but maps every tile's vertices back from the GPU to do it: too slow while a city streams in.)
+  basemaps: ['satellite'],
   create(globe) {
     return imageryHandle(globe, () => gibs('IMERG_Precipitation_Rate_30min', { level: 6, format: 'png' }), {
       opacity: 0.8,
       refreshMs: 30 * 60_000,
       fade: { from: 300_000, to: 30_000, floor: 0.3 },
-      data: true,
     });
   },
 };
@@ -298,11 +304,14 @@ export const seaTemperatureLayer: LayerDef = {
   source: nasaGibs,
   defaultVisible: false,
   opacity: 0.85,
+  // Imagery drapes over the globe, which Photorealistic 3D hides. (Cesium can drape it over 3D tiles,
+  // but maps every tile's vertices back from the GPU to do it: too slow while a city streams in.)
+  basemaps: ['satellite'],
   create(globe) {
     return imageryHandle(
       globe,
       () => gibs('GHRSST_L4_MUR_Sea_Surface_Temperature', { level: 7, format: 'png' }),
-      { opacity: 0.85, data: true },
+      { opacity: 0.85 },
     );
   },
 };
