@@ -48,6 +48,55 @@ export const feeds: { readonly [F in FeedId]: FeedInfo } = {
     source: { name: 'RainViewer', url: 'https://www.rainviewer.com', license: 'RainViewer API terms' },
     intervalSeconds: 5 * 60,
   },
+  ships: {
+    title: 'Ships',
+    source: {
+      name: 'aisstream.io and Fintraffic',
+      url: 'https://aisstream.io',
+      license: 'aisstream.io terms; Fintraffic / digitraffic.fi, CC BY 4.0',
+    },
+    intervalSeconds: 5 * 60,
+  },
+  airports: {
+    title: 'Airports',
+    source: { name: 'OurAirports', url: 'https://ourairports.com', license: 'Public domain' },
+    intervalSeconds: 24 * 60 * 60,
+  },
+  transitFeeds: {
+    title: 'Transit feed catalog',
+    source: {
+      name: 'Mobility Database',
+      url: 'https://mobilitydatabase.org',
+      license: 'Catalog: CC0; each feed under its provider’s license',
+    },
+    intervalSeconds: 24 * 60 * 60,
+  },
+  bikeSystems: {
+    title: 'Bike-share systems',
+    source: {
+      name: 'GBFS (MobilityData systems list)',
+      url: 'https://github.com/MobilityData/gbfs',
+      license: 'Each system’s GBFS license',
+    },
+    // Each refresh checks a batch of systems (src/ingest/bike-systems.ts); every one is revisited within hours.
+    intervalSeconds: 15 * 60,
+  },
+  lightning: {
+    title: 'Lightning',
+    source: {
+      name: 'NOAA GOES GLM',
+      url: 'https://registry.opendata.aws/noaa-goes/',
+      license: 'NOAA open data',
+    },
+    intervalSeconds: 60,
+  },
+};
+
+/** Where live transit vehicles come from; each feed's provider is credited with the vehicles. */
+export const transitSource: Source = {
+  name: 'GTFS-realtime feeds via the Mobility Database',
+  url: 'https://mobilitydatabase.org',
+  license: 'Each provider’s license',
 };
 
 /** Where nearby-aircraft queries go, in order: the next is tried when one fails. */

@@ -9,7 +9,18 @@
  */
 import { Schema } from 'effect';
 
-export const feedIds = ['satellites', 'earthquakes', 'fires', 'events', 'radar'] as const;
+export const feedIds = [
+  'satellites',
+  'earthquakes',
+  'fires',
+  'events',
+  'radar',
+  'ships',
+  'airports',
+  'transitFeeds',
+  'bikeSystems',
+  'lightning',
+] as const;
 export const FeedId = Schema.Literals(feedIds);
 export type FeedId = typeof FeedId.Type;
 
@@ -20,6 +31,9 @@ export type RefreshJob = typeof RefreshJob.Type;
 const Column = <S extends Schema.Top>(item: S) => Schema.Array(item);
 const Numbers = Column(Schema.Finite);
 const NullableNumbers = Column(Schema.NullOr(Schema.Finite));
+const Strings = Column(Schema.String);
+const Ints = Column(Schema.Int);
+const NullableInts = Column(Schema.NullOr(Schema.Int));
 
 // ---------------------------------------------------------------------------
 // Feed payloads
@@ -174,6 +188,165 @@ export const RadarData = Schema.Struct({
 });
 export type RadarData = typeof RadarData.Type;
 
+/**
+ * Vessels from AIS, columnar: each one's latest position report and the static
+ * data (name, type, size) it last broadcast. Strings are empty and numbers 0
+ * where the vessel hasn't said.
+ */
+export const ShipData = Schema.Struct({
+  /** Epoch seconds that `time` counts from. */
+  since: Schema.Finite,
+  mmsi: Ints,
+  name: Strings,
+  callsign: Strings,
+  /** IMO number; most small craft have none. */
+  imo: Ints,
+  /** AIS ship and cargo type, 1–99. */
+  shipType: Ints,
+  lon: Numbers,
+  lat: Numbers,
+  /** Speed over ground, knots. */
+  speed: NullableNumbers,
+  /** Course over ground, degrees clockwise from true north. */
+  course: NullableNumbers,
+  /** Where the bow points, degrees clockwise from true north. */
+  heading: NullableNumbers,
+  /** AIS navigational status, 0–15 (15: not defined). */
+  status: Ints,
+  destination: Strings,
+  /** Meters, bow to stern. */
+  length: Ints,
+  /** Meters, beam. */
+  width: Ints,
+  /** Seconds after `since` of the latest position report. */
+  time: Ints,
+});
+export type ShipData = typeof ShipData.Type;
+
+export const AirportType = Schema.Literals([
+  'large',
+  'medium',
+  'small',
+  'heliport',
+  'seaplane',
+  'balloonport',
+]);
+export type AirportType = typeof AirportType.Type;
+
+/** Open airports and their runways (OurAirports), columnar. Codes and links are empty when unknown. */
+export const AirportData = Schema.Struct({
+  airports: Schema.Struct({
+    /** OurAirports identifier: the ICAO code where there is one (`KJFK`), else a local one (`00A`). */
+    ident: Strings,
+    type: Column(AirportType),
+    name: Strings,
+    lon: Numbers,
+    lat: Numbers,
+    /** Feet. */
+    elevation: NullableInts,
+    /** ISO 3166-1 alpha-2. */
+    country: Strings,
+    municipality: Strings,
+    icao: Strings,
+    iata: Strings,
+    /** The code national authorities use (FAA LID in the US). */
+    local: Strings,
+    /** Has scheduled airline service. */
+    scheduled: Column(Schema.Boolean),
+    website: Strings,
+    wikipedia: Strings,
+  }),
+  runways: Schema.Struct({
+    /** Index into `airports`. */
+    airport: Ints,
+    /** Designators of the two ends (`09L`, `27R`). */
+    low: Strings,
+    high: Strings,
+    /** Feet. */
+    length: NullableInts,
+    width: NullableInts,
+    /** As the source records it (`ASP`, `CON`, `TURF`, …). */
+    surface: Strings,
+    lighted: Column(Schema.Boolean),
+    /** Threshold coordinates; null where they haven't been surveyed. */
+    lowLon: NullableNumbers,
+    lowLat: NullableNumbers,
+    highLon: NullableNumbers,
+    highLat: NullableNumbers,
+  }),
+});
+export type AirportData = typeof AirportData.Type;
+
+/**
+ * GTFS-realtime vehicle-position feeds that need no key, from the Mobility
+ * Database catalog, with the area each serves. Columnar.
+ */
+export const TransitFeedData = Schema.Struct({
+  /** Mobility Database id (`mdb-1602`). */
+  id: Strings,
+  provider: Strings,
+  /** The vehicle positions feed. */
+  url: Strings,
+  west: Numbers,
+  south: Numbers,
+  east: Numbers,
+  north: Numbers,
+  /** The Mobility Database's copies of the provider's static GTFS, for route names and modes. */
+  schedules: Column(Schema.Array(Schema.String)),
+});
+export type TransitFeedData = typeof TransitFeedData.Type;
+
+/**
+ * Bike-share systems from the GBFS systems list, located by walking each one's
+ * feeds a batch at a time. Columnar; the station fields are empty for systems
+ * without stations (free-floating fleets) and ones not reached yet.
+ */
+export const BikeSystemData = Schema.Struct({
+  /** GBFS system id. */
+  id: Strings,
+  name: Strings,
+  /** The operator's site. */
+  website: Strings,
+  /** Auto-discovery (`gbfs.json`) URL. */
+  discovery: Strings,
+  /** Epoch seconds of the last check; 0 before the first. */
+  checkedAt: Ints,
+  /** Stations at the last successful check. */
+  stations: Ints,
+  /** Bounds of the stations. */
+  west: NullableNumbers,
+  south: NullableNumbers,
+  east: NullableNumbers,
+  north: NullableNumbers,
+  /** `station_information`, `station_status` and `vehicle_types` feeds; empty when absent. */
+  information: Strings,
+  status: Strings,
+  vehicleTypes: Strings,
+});
+export type BikeSystemData = typeof BikeSystemData.Type;
+
+/** Lightning flashes seen by the GOES Geostationary Lightning Mappers, columnar. */
+export const LightningData = Schema.Struct({
+  /** Epoch ms that `time` counts from. */
+  since: Schema.Finite,
+  /**
+   * Per satellite (`G19`), the start of the newest file read, as in its name
+   * (`s20263200059200`); the next refresh reads only files after it.
+   */
+  latest: Schema.Record(Schema.String, Schema.String),
+  lon: Numbers,
+  lat: Numbers,
+  /** Seconds after `since` of the flash's first optical event. */
+  time: Numbers,
+  /** Total optical energy, femtojoules. */
+  energy: Numbers,
+  /** Square kilometers lit. */
+  area: Numbers,
+  /** Which satellite saw it, as named in `latest`. */
+  satellite: Strings,
+});
+export type LightningData = typeof LightningData.Type;
+
 // ---------------------------------------------------------------------------
 // Snapshots
 // ---------------------------------------------------------------------------
@@ -198,6 +371,16 @@ export const EventSnapshot = snapshot('events', EventData);
 export type EventSnapshot = typeof EventSnapshot.Type;
 export const RadarSnapshot = snapshot('radar', RadarData);
 export type RadarSnapshot = typeof RadarSnapshot.Type;
+export const ShipSnapshot = snapshot('ships', ShipData);
+export type ShipSnapshot = typeof ShipSnapshot.Type;
+export const AirportSnapshot = snapshot('airports', AirportData);
+export type AirportSnapshot = typeof AirportSnapshot.Type;
+export const TransitFeedSnapshot = snapshot('transitFeeds', TransitFeedData);
+export type TransitFeedSnapshot = typeof TransitFeedSnapshot.Type;
+export const BikeSystemSnapshot = snapshot('bikeSystems', BikeSystemData);
+export type BikeSystemSnapshot = typeof BikeSystemSnapshot.Type;
+export const LightningSnapshot = snapshot('lightning', LightningData);
+export type LightningSnapshot = typeof LightningSnapshot.Type;
 
 /** Each feed's snapshot schema. */
 export const Snapshots = {
@@ -206,6 +389,11 @@ export const Snapshots = {
   fires: FireSnapshot,
   events: EventSnapshot,
   radar: RadarSnapshot,
+  ships: ShipSnapshot,
+  airports: AirportSnapshot,
+  transitFeeds: TransitFeedSnapshot,
+  bikeSystems: BikeSystemSnapshot,
+  lightning: LightningSnapshot,
 } satisfies { [F in FeedId]: Schema.Top };
 
 /** Each feed's payload type. */
@@ -215,6 +403,11 @@ export interface FeedData {
   fires: FireData;
   events: EventData;
   radar: RadarData;
+  ships: ShipData;
+  airports: AirportData;
+  transitFeeds: TransitFeedData;
+  bikeSystems: BikeSystemData;
+  lightning: LightningData;
 }
 
 // ---------------------------------------------------------------------------
@@ -277,6 +470,77 @@ export const Here = Schema.Struct({
   weather: Schema.NullOr(CurrentWeather),
 });
 export type Here = typeof Here.Type;
+
+/** The airports in one map tile, with their runways and every detail the snapshot has. */
+export const AirportsInTile = Schema.Struct({
+  /** The airports snapshot they were cut from. */
+  version: Schema.String,
+  data: AirportData,
+});
+export type AirportsInTile = typeof AirportsInTile.Type;
+
+export const TransitMode = Schema.Literals(['bus', 'tram', 'metro', 'rail', 'ferry', 'cable', 'other']);
+export type TransitMode = typeof TransitMode.Type;
+
+/** Transit vehicles in one map tile, from every keyless GTFS-realtime feed covering it. */
+export const TransitVehicles = Schema.Struct({
+  /** Epoch ms the answer was put together. */
+  time: Schema.Finite,
+  /** The feeds covering the tile; `feed` indexes into this. `ok` is false for one that didn't answer. */
+  feeds: Schema.Array(Schema.Struct({ id: Schema.String, provider: Schema.String, ok: Schema.Boolean })),
+  data: Schema.Struct({
+    feed: Ints,
+    /** The vehicle's id in its feed, or its trip's when the feed gives none. */
+    id: Strings,
+    /** What the vehicle shows riders (a fleet number, a headsign); empty when not given. */
+    label: Strings,
+    route: Strings,
+    /** The route's public name (`39`, `Red Line`) from the provider's schedule; empty when unknown. */
+    routeName: Strings,
+    trip: Strings,
+    /** From the route's type in the provider's schedule; null when unknown. */
+    mode: Column(Schema.NullOr(TransitMode)),
+    lon: Numbers,
+    lat: Numbers,
+    /** Degrees clockwise from true north. */
+    bearing: NullableNumbers,
+    /** m/s. */
+    speed: NullableNumbers,
+    /** Epoch seconds of the position. */
+    timestamp: NullableNumbers,
+  }),
+});
+export type TransitVehicles = typeof TransitVehicles.Type;
+
+/** Bike-share stations in one map tile, with what they have now. */
+export const BikeStations = Schema.Struct({
+  /** Epoch ms the answer was put together. */
+  time: Schema.Finite,
+  /** The systems covering the tile; `system` indexes into this. `ok` is false for one that didn't answer. */
+  systems: Schema.Array(
+    Schema.Struct({ id: Schema.String, name: Schema.String, website: Schema.String, ok: Schema.Boolean }),
+  ),
+  data: Schema.Struct({
+    system: Ints,
+    id: Strings,
+    name: Strings,
+    lon: Numbers,
+    lat: Numbers,
+    /** Bikes ready to rent, electric ones included. */
+    bikes: Ints,
+    /** Electric bikes among `bikes`; null when the system doesn't break them out. */
+    ebikes: NullableInts,
+    /** Free docks; null at stations without them. */
+    docks: NullableInts,
+    capacity: NullableInts,
+    /** Whether the station is renting bikes out and taking them back. */
+    renting: Column(Schema.Boolean),
+    returning: Column(Schema.Boolean),
+    /** Epoch seconds of the station's last report. */
+    reported: NullableNumbers,
+  }),
+});
+export type BikeStations = typeof BikeStations.Type;
 
 /**
  * What the browser needs to know about this deployment: the keys of services

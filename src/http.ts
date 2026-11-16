@@ -4,13 +4,16 @@ import { HttpEffect, HttpServerResponse } from 'effect/http';
 import { HttpApiBuilder } from 'effect/http-api';
 import type { HttpServerRequest } from 'effect/http/HttpServerRequest';
 import { AircraftNearbyLookup } from './aircraft.ts';
+import { AirportIndex } from './airports.ts';
 import { Api } from './api.ts';
+import { BikeLookup } from './bikes.ts';
 import { feeds } from './catalog.ts';
 import { type FeedId, FeedNotReady, feedIds } from './domain.ts';
 import { FeedStore } from './feeds.ts';
 import { HereLookup } from './here.ts';
 import { Sources } from './ingest/index.ts';
 import { Tiles } from './tiles.ts';
+import { TransitLookup } from './transit.ts';
 
 /** Sets `Cache-Control` on the response the current handler produces. */
 const cacheFor = (value: string) =>
@@ -114,13 +117,39 @@ const LiveHandlers = HttpApiBuilder.group(
   'live',
   Effect.fn(function* (handlers) {
     const aircraft = yield* AircraftNearbyLookup;
-    return handlers.handle('aircraft', ({ query }) =>
-      Effect.gen(function* () {
-        const nearby = yield* aircraft.near(query.lat, query.lon);
-        yield* cacheFor('public, max-age=8, stale-while-revalidate=20');
-        return nearby;
-      }),
-    );
+    const airports = yield* AirportIndex;
+    const transit = yield* TransitLookup;
+    const bikes = yield* BikeLookup;
+    return handlers
+      .handle('aircraft', ({ query }) =>
+        Effect.gen(function* () {
+          const nearby = yield* aircraft.near(query.lat, query.lon);
+          yield* cacheFor('public, max-age=8, stale-while-revalidate=20');
+          return nearby;
+        }),
+      )
+      .handle('airports', ({ params }) =>
+        Effect.gen(function* () {
+          const tile = yield* airports.tile(params.z, params.x, params.y);
+          // The snapshot changes daily; a tile a few hours old is still right.
+          yield* cacheFor('public, max-age=3600, stale-while-revalidate=86400');
+          return tile;
+        }),
+      )
+      .handle('transit', ({ params }) =>
+        Effect.gen(function* () {
+          const vehicles = yield* transit.tile(params.z, params.x, params.y);
+          yield* cacheFor('public, max-age=15, stale-while-revalidate=30');
+          return vehicles;
+        }),
+      )
+      .handle('bikes', ({ params }) =>
+        Effect.gen(function* () {
+          const stations = yield* bikes.tile(params.z, params.x, params.y);
+          yield* cacheFor('public, max-age=60, stale-while-revalidate=120');
+          return stations;
+        }),
+      );
   }),
 );
 
@@ -129,12 +158,27 @@ const FeedsHandlers = HttpApiBuilder.group(
   'feeds',
   Effect.fn(function* (handlers) {
     const store = yield* FeedStore;
+    const airports = yield* AirportIndex;
     return handlers
       .handle('satellites', serveFeed(store, 'satellites'))
       .handle('earthquakes', serveFeed(store, 'earthquakes'))
       .handle('fires', serveFeed(store, 'fires'))
       .handle('events', serveFeed(store, 'events'))
-      .handle('radar', serveFeed(store, 'radar'));
+      .handle('radar', serveFeed(store, 'radar'))
+      .handle('ships', serveFeed(store, 'ships'))
+      .handle('airports', ({ request }) =>
+        Effect.gen(function* () {
+          // Not the stored snapshot but its global cut (src/airports.ts); same version, same ETag.
+          const { version, body } = yield* airports.major;
+          const headers = { etag: `"${version}"`, 'cache-control': feedCacheControl('airports') };
+          if (request.headers['if-none-match'] === headers.etag)
+            return HttpServerResponse.empty({ status: 304, headers });
+          return HttpServerResponse.text(body, { contentType: 'application/json', headers });
+        }),
+      )
+      .handle('transitFeeds', serveFeed(store, 'transitFeeds'))
+      .handle('bikeSystems', serveFeed(store, 'bikeSystems'))
+      .handle('lightning', serveFeed(store, 'lightning'));
   }),
 );
 
@@ -145,5 +189,6 @@ const FeedsHandlers = HttpApiBuilder.group(
  */
 export const HttpLive = HttpApiBuilder.layer(Api, { openapiPath: '/api/openapi.json' }).pipe(
   Layer.provide([SystemHandlers, FeedsHandlers, LiveHandlers, TilesHandlers]),
+  Layer.provide([AirportIndex.layer, TransitLookup.layer, BikeLookup.layer]),
   Layer.provide([FeedStore.layer, Sources.layer, HereLookup.layer, Tiles.layer, AircraftNearbyLookup.layer]),
 );

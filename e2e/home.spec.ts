@@ -43,5 +43,16 @@ test('the API describes every feed', async ({ request }) => {
   const res = await request.get('/api/catalog');
   expect(res.ok()).toBe(true);
   const body = (await res.json()) as { feeds: Array<{ id: string }> };
-  expect(body.feeds.map((f) => f.id)).toEqual(['satellites', 'earthquakes', 'fires', 'events', 'radar']);
+  expect(body.feeds.map((f) => f.id)).toEqual([
+    'satellites',
+    'earthquakes',
+    'fires',
+    'events',
+    'radar',
+    'ships',
+    'airports',
+    'transitFeeds',
+    'bikeSystems',
+    'lightning',
+  ]);
 });

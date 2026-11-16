@@ -1,0 +1,176 @@
+{
+ "lastUpdatedOther": 1794792165,
+ "ttl": 3600,
+ "data": {
+  "stations": [
+   {
+    "station_id": 213688169,
+    "num_bikes_available": 5,
+    "numBikesAvailable": 5,
+    "num_bikes_available_types": [
+     {
+      "mechanical": 3
+     },
+     {
+      "ebike": 2
+     }
+    ],
+    "num_docks_available": 29,
+    "numDocksAvailable": 29,
+    "is_installed": 1,
+    "is_returning": 1,
+    "is_renting": 1,
+    "last_reported": 1794791607,
+    "stationCode": "16107",
+    "station_opening_hours": null
+   },
+   {
+    "station_id": 19179944124,
+    "num_bikes_available": 10,
+    "numBikesAvailable": 10,
+    "num_bikes_available_types": [
+     {
+      "mechanical": 8
+     },
+     {
+      "ebike": 2
+     }
+    ],
+    "num_docks_available": 18,
+    "numDocksAvailable": 18,
+    "is_installed": 1,
+    "is_returning": 1,
+    "is_renting": 1,
+    "last_reported": 1794791429,
+    "stationCode": "40001",
+    "station_opening_hours": null
+   },
+   {
+    "station_id": 18795078746,
+    "num_bikes_available": 8,
+    "numBikesAvailable": 8,
+    "num_bikes_available_types": [
+     {
+      "mechanical": 1
+     },
+     {
+      "ebike": 7
+     }
+    ],
+    "num_docks_available": 21,
+    "numDocksAvailable": 21,
+    "is_installed": 1,
+    "is_returning": 1,
+    "is_renting": 1,
+    "last_reported": 1794791486,
+    "stationCode": "32304",
+    "station_opening_hours": null
+   },
+   {
+    "station_id": 36255,
+    "num_bikes_available": 3,
+    "numBikesAvailable": 3,
+    "num_bikes_available_types": [
+     {
+      "mechanical": 2
+     },
+     {
+      "ebike": 1
+     }
+    ],
+    "num_docks_available": 18,
+    "numDocksAvailable": 18,
+    "is_installed": 1,
+    "is_returning": 1,
+    "is_renting": 1,
+    "last_reported": 1794791292,
+    "stationCode": "9020",
+    "station_opening_hours": null
+   },
+   {
+    "station_id": 251039991,
+    "num_bikes_available": 7,
+    "numBikesAvailable": 7,
+    "num_bikes_available_types": [
+     {
+      "mechanical": 3
+     },
+     {
+      "ebike": 4
+     }
+    ],
+    "num_docks_available": 16,
+    "numDocksAvailable": 16,
+    "is_installed": 1,
+    "is_returning": 1,
+    "is_renting": 1,
+    "last_reported": 1794791057,
+    "stationCode": "14111",
+    "station_opening_hours": null
+   },
+   {
+    "station_id": 85002689,
+    "num_bikes_available": 45,
+    "numBikesAvailable": 45,
+    "num_bikes_available_types": [
+     {
+      "mechanical": 10
+     },
+     {
+      "ebike": 35
+     }
+    ],
+    "num_docks_available": 14,
+    "numDocksAvailable": 14,
+    "is_installed": 1,
+    "is_returning": 1,
+    "is_renting": 1,
+    "last_reported": 1794791548,
+    "stationCode": "14014",
+    "station_opening_hours": null
+   },
+   {
+    "station_id": 516709288,
+    "num_bikes_available": 1,
+    "numBikesAvailable": 1,
+    "num_bikes_available_types": [
+     {
+      "mechanical": 0
+     },
+     {
+      "ebike": 1
+     }
+    ],
+    "num_docks_available": 17,
+    "numDocksAvailable": 17,
+    "is_installed": 1,
+    "is_returning": 1,
+    "is_renting": 1,
+    "last_reported": 1794791278,
+    "stationCode": "11104",
+    "station_opening_hours": null
+   },
+   {
+    "station_id": 37874517,
+    "num_bikes_available": 16,
+    "numBikesAvailable": 16,
+    "num_bikes_available_types": [
+     {
+      "mechanical": 15
+     },
+     {
+      "ebike": 1
+     }
+    ],
+    "num_docks_available": 3,
+    "numDocksAvailable": 3,
+    "is_installed": 1,
+    "is_returning": 1,
+    "is_renting": 1,
+    "last_reported": 1794791595,
+    "stationCode": "6003",
+    "station_opening_hours": null
+   }
+  ]
+ }
+}

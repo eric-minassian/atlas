@@ -13,6 +13,11 @@ const fetchers: Fetchers = {
   fires: (api) => api.feeds.fires(),
   events: (api) => api.feeds.events(),
   radar: (api) => api.feeds.radar(),
+  ships: (api) => api.feeds.ships(),
+  airports: (api) => api.feeds.airports(),
+  transitFeeds: (api) => api.feeds.transitFeeds(),
+  bikeSystems: (api) => api.feeds.bikeSystems(),
+  lightning: (api) => api.feeds.lightning(),
 };
 
 export interface FeedView {

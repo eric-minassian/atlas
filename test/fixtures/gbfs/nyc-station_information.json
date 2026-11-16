@@ -1,0 +1,121 @@
+{
+ "data": {
+  "stations": [
+   {
+    "station_id": "abc1311e-e000-4211-af9e-0cf92242711e",
+    "name": "Grand Concourse & E 164 St",
+    "short_name": "8057.02",
+    "lon": -73.921461,
+    "lat": 40.829608,
+    "region_id": "71",
+    "capacity": 22,
+    "rental_uris": {
+     "android": "https://bkn.lft.to/lastmile_qr_scan",
+     "ios": "https://bkn.lft.to/lastmile_qr_scan"
+    },
+    "is_charging": false
+   },
+   {
+    "station_id": "d73e26de-8534-4b46-a321-3cae295ef9b2",
+    "name": "W 171 St & St Nicholas Ave",
+    "short_name": "8262.07",
+    "lon": -73.938631,
+    "lat": 40.842941,
+    "region_id": "71",
+    "capacity": 31,
+    "rental_uris": {
+     "android": "https://bkn.lft.to/lastmile_qr_scan",
+     "ios": "https://bkn.lft.to/lastmile_qr_scan"
+    },
+    "is_charging": false
+   },
+   {
+    "station_id": "32cc1603-a4b5-4099-b7bf-681de451b04a",
+    "name": "Walker St & Baxter St",
+    "short_name": "5351.07",
+    "lon": -73.999573,
+    "lat": 40.717411,
+    "region_id": "71",
+    "capacity": 47,
+    "rental_uris": {
+     "android": "https://bkn.lft.to/lastmile_qr_scan",
+     "ios": "https://bkn.lft.to/lastmile_qr_scan"
+    },
+    "is_charging": false
+   },
+   {
+    "station_id": "1860188747953293684",
+    "name": "Southern Blvd & E 180 St",
+    "short_name": "8325.08",
+    "lon": -73.88426,
+    "lat": 40.84605,
+    "region_id": "71",
+    "capacity": 19,
+    "rental_uris": {
+     "android": "https://bkn.lft.to/lastmile_qr_scan",
+     "ios": "https://bkn.lft.to/lastmile_qr_scan"
+    },
+    "is_charging": false
+   },
+   {
+    "station_id": "66dc2995-0aca-11e7-82f6-3863bb44ef7c",
+    "name": "W 25 St & 6 Ave",
+    "short_name": "6215.04",
+    "lon": -73.99144871,
+    "lat": 40.74395411,
+    "region_id": "71",
+    "capacity": 51,
+    "rental_uris": {
+     "android": "https://bkn.lft.to/lastmile_qr_scan",
+     "ios": "https://bkn.lft.to/lastmile_qr_scan"
+    },
+    "is_charging": false
+   },
+   {
+    "station_id": "66dc292c-0aca-11e7-82f6-3863bb44ef7c",
+    "name": "Broadway & W 41 St",
+    "short_name": "6560.01",
+    "lon": -73.98658032,
+    "lat": 40.75513557,
+    "region_id": "71",
+    "capacity": 55,
+    "rental_uris": {
+     "android": "https://bkn.lft.to/lastmile_qr_scan",
+     "ios": "https://bkn.lft.to/lastmile_qr_scan"
+    },
+    "is_charging": false
+   },
+   {
+    "station_id": "66db4549-0aca-11e7-82f6-3863bb44ef7c",
+    "name": "Washington Park",
+    "short_name": "4546.05",
+    "lon": -73.9737299,
+    "lat": 40.6917823,
+    "region_id": "71",
+    "capacity": 24,
+    "rental_uris": {
+     "android": "https://bkn.lft.to/lastmile_qr_scan",
+     "ios": "https://bkn.lft.to/lastmile_qr_scan"
+    },
+    "is_charging": false
+   },
+   {
+    "station_id": "66de0cab-0aca-11e7-82f6-3863bb44ef7c",
+    "name": "Columbia St & Lorraine St",
+    "short_name": "4013.08",
+    "lon": -74.0075572,
+    "lat": 40.6747055,
+    "region_id": "71",
+    "capacity": 37,
+    "rental_uris": {
+     "android": "https://bkn.lft.to/lastmile_qr_scan",
+     "ios": "https://bkn.lft.to/lastmile_qr_scan"
+    },
+    "is_charging": false
+   }
+  ]
+ },
+ "last_updated": 1794792174,
+ "ttl": 60,
+ "version": "2.3"
+}

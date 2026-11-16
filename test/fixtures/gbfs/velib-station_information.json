@@ -1,0 +1,92 @@
+{
+ "lastUpdatedOther": 1794792165,
+ "ttl": 3600,
+ "data": {
+  "stations": [
+   {
+    "station_id": 18795078746,
+    "stationCode": "32304",
+    "name": "Charcot - Benfleet",
+    "lat": 48.878370277021,
+    "lon": 2.440523876268,
+    "capacity": 28,
+    "station_opening_hours": null
+   },
+   {
+    "station_id": 36255,
+    "stationCode": "9020",
+    "name": "Toudouze - Clauzel",
+    "lat": 48.87929591733507,
+    "lon": 2.3373600840568547,
+    "capacity": 21,
+    "rental_methods": [
+     "CREDITCARD"
+    ],
+    "station_opening_hours": null
+   },
+   {
+    "station_id": 251039991,
+    "stationCode": "14111",
+    "name": "Cassini - Denfert-Rochereau",
+    "lat": 48.837525839067,
+    "lon": 2.3360354080796,
+    "capacity": 25,
+    "rental_methods": [
+     "CREDITCARD"
+    ],
+    "station_opening_hours": null
+   },
+   {
+    "station_id": 85002689,
+    "stationCode": "14014",
+    "name": "Jourdan - Stade Charl\u00e9ty",
+    "lat": 48.819428333369,
+    "lon": 2.3433353751898,
+    "capacity": 60,
+    "rental_methods": [
+     "CREDITCARD"
+    ],
+    "station_opening_hours": null
+   },
+   {
+    "station_id": 516709288,
+    "stationCode": "11104",
+    "name": "Charonne - Robert et Sonia Delaunay",
+    "lat": 48.855907555969,
+    "lon": 2.3925706744194,
+    "capacity": 20,
+    "station_opening_hours": null
+   },
+   {
+    "station_id": 37874517,
+    "stationCode": "6003",
+    "name": "Saint-Sulpice",
+    "lat": 48.85165383178419,
+    "lon": 2.3308077827095985,
+    "capacity": 21,
+    "rental_methods": [
+     "CREDITCARD"
+    ],
+    "station_opening_hours": null
+   },
+   {
+    "station_id": 213688169,
+    "stationCode": "16107",
+    "name": "Benjamin Godard - Victor Hugo",
+    "lat": 48.865983,
+    "lon": 2.275725,
+    "capacity": 35,
+    "station_opening_hours": null
+   },
+   {
+    "station_id": 19179944124,
+    "stationCode": "40001",
+    "name": "H\u00f4pital Mondor",
+    "lat": 48.798922410229,
+    "lon": 2.4537451531298,
+    "capacity": 28,
+    "station_opening_hours": null
+   }
+  ]
+ }
+}

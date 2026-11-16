@@ -1,11 +1,16 @@
 import { Context, Layer } from 'effect';
 import type { FeedId } from '../domain.ts';
+import { makeAirportSource } from './airports.ts';
+import { makeBikeSystemSource } from './bike-systems.ts';
 import { makeEarthquakeSource } from './earthquakes.ts';
 import { makeEventSource } from './events.ts';
 import { makeFireSource } from './fires.ts';
+import { makeLightningSource } from './lightning.ts';
 import { makeRadarSource } from './radar.ts';
 import { makeSatelliteSource } from './satellites.ts';
+import { makeShipSource } from './ships.ts';
 import type { Source } from './source.ts';
+import { makeTransitFeedSource } from './transit-feeds.ts';
 
 export type { IngestResult, Source, Validators } from './source.ts';
 export { IngestError } from './source.ts';
@@ -25,6 +30,11 @@ export class Sources extends Context.Service<Sources, { readonly [F in FeedId]: 
       fires: makeFireSource(),
       events: makeEventSource(),
       radar: makeRadarSource(),
+      ships: makeShipSource(),
+      airports: makeAirportSource(),
+      transitFeeds: makeTransitFeedSource(),
+      bikeSystems: makeBikeSystemSource(),
+      lightning: makeLightningSource(),
     }),
   );
 }
