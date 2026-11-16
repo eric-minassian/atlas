@@ -4,12 +4,14 @@ import { Kbd } from '@/components/ui/kbd';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Inspector, type Selection } from './components/Inspector.tsx';
 import { defaultSettings, type LayerSettings, LayerPanel } from './components/LayerPanel.tsx';
+import { PanoramaOverlay, usePanorama } from './components/PanoramaOverlay.tsx';
 import { SearchDialog } from './components/SearchDialog.tsx';
 import { loadConfig } from './config.ts';
 import type { Basemap, Pick } from './globe/globe.ts';
 import { useCatalog, useLayerStates, useNow, usePersistentState } from './hooks.ts';
 import { layerById, layers } from './layers/registry.ts';
 import type { Details, SearchHit } from './layers/types.ts';
+import { cn } from './lib/utils.ts';
 import { World } from './world.ts';
 
 const SETTINGS_KEY = 'atlas:layers:v1';
@@ -30,6 +32,7 @@ export function App() {
     basemap: 'satellite',
   });
   useLayerStates(world);
+  const inPanorama = usePanorama(world?.street) !== undefined;
 
   // Map credits (imagery, terrain, 3D tiles) go here; Cesium keeps them current for what's on screen.
   const credits = useRef<HTMLDivElement | null>(null);
@@ -160,7 +163,17 @@ export function App() {
           </div>
         )}
 
-        <div className="pointer-events-none absolute inset-0 flex flex-col p-3 sm:p-4">
+        {world && inPanorama && (
+          <div className="pointer-events-none absolute inset-0">
+            <PanoramaOverlay viewer={world.street} />
+          </div>
+        )}
+        <div
+          className={cn(
+            'pointer-events-none absolute inset-0 flex flex-col p-3 sm:p-4',
+            inPanorama && 'hidden',
+          )}
+        >
           <TopBar
             panelOpen={panelOpen}
             onTogglePanel={() => setPanelOpen((open) => !open)}

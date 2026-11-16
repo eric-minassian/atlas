@@ -117,6 +117,7 @@ export class Globe {
   private photoreal: Cesium3DTileset | undefined;
   private photorealLoading: Promise<Cesium3DTileset | undefined> | undefined;
   private readonly pickers = new Set<Picker>();
+  private isolated = false;
   private readonly handler: ScreenSpaceEventHandler;
   private following: (() => Cartesian3 | undefined) | undefined;
   private readonly cleanup: Array<() => void> = [];
@@ -332,6 +333,32 @@ export class Globe {
     }
   }
 
+  /**
+   * Hides the globe and everything drawn on it, for a panorama that surrounds
+   * the camera (anything inside the sphere would show through it). Primitives
+   * added afterwards show normally. Returns the undo.
+   */
+  isolate(): () => void {
+    const { scene } = this;
+    this.isolated = true;
+    const hidden: Array<{ show: boolean; isDestroyed?: () => boolean }> = [];
+    for (let i = 0; i < scene.primitives.length; i++) {
+      const primitive = scene.primitives.get(i) as { show: boolean; isDestroyed?: () => boolean };
+      if (primitive.show) {
+        primitive.show = false;
+        hidden.push(primitive);
+      }
+    }
+    const globeShown = scene.globe.show;
+    scene.globe.show = false;
+    return () => {
+      this.isolated = false;
+      for (const primitive of hidden) if (!primitive.isDestroyed?.()) primitive.show = true;
+      // The base map may have changed meanwhile; the globe follows it, not what it was.
+      scene.globe.show = globeShown && this.currentBasemap === 'satellite';
+    };
+  }
+
   /** Real day and night, or the whole Earth in daylight. */
   setLighting(enabled: boolean): void {
     this.scene.globe.enableLighting = enabled;
@@ -344,10 +371,31 @@ export class Globe {
    * when nothing is loaded there yet.
    */
   heightAt(lon: number, lat: number): number | undefined {
+    // Hidden (inside a panorama), neither the globe nor the tiles can answer.
+    if (this.isolated) return undefined;
     const c = Cartographic.fromDegrees(lon, lat);
     if (this.currentBasemap === 'photoreal')
       return this.scene.sampleHeightSupported ? this.scene.sampleHeight(c) : undefined;
     return this.scene.globe.getHeight(c);
+  }
+
+  /**
+   * Ground heights for many points at once. On terrain it's a lookup per
+   * point; on Photorealistic 3D, one batched sampling of the tiles, which
+   * renders, so callers keep batches small.
+   */
+  async groundHeights(
+    points: ReadonlyArray<{ readonly lon: number; readonly lat: number }>,
+  ): Promise<Array<number | undefined>> {
+    if (this.isolated || points.length === 0) return points.map(() => undefined);
+    if (this.currentBasemap === 'photoreal') {
+      if (!this.scene.sampleHeightSupported) return points.map(() => undefined);
+      const sampled = await this.scene
+        .sampleHeightMostDetailed(points.map((p) => Cartographic.fromDegrees(p.lon, p.lat)))
+        .catch(() => []);
+      return points.map((_, i) => sampled[i]?.height);
+    }
+    return points.map((p) => this.scene.globe.getHeight(Cartographic.fromDegrees(p.lon, p.lat)));
   }
 
   /** Lets a layer resolve picks of things it can't tag with a `PickId` (3D tile features). */

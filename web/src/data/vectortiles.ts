@@ -33,33 +33,48 @@ const tileTemplate = (): Promise<string> => {
   return template;
 };
 
-const cache = new Map<string, Promise<VectorTile | undefined>>();
-
-/** The decoded tile at z/x/y (at most zoom 14); undefined where there's no tile (open ocean). */
-export const vectorTile = (z: number, x: number, y: number): Promise<VectorTile | undefined> => {
-  const key = `${z}/${x}/${y}`;
-  const hit = cache.get(key);
-  if (hit) {
-    // Refresh its place in the LRU order.
-    cache.delete(key);
-    cache.set(key, hit);
-    return hit;
-  }
-  const loading = (async () => {
-    const url = (await tileTemplate())
-      .replace('{z}', String(z))
-      .replace('{x}', String(x))
-      .replace('{y}', String(y));
-    const response = await fetch(url);
-    if (response.status === 404 || response.status === 204) return undefined;
-    if (!response.ok) throw new Error(`OpenFreeMap tile ${key}: HTTP ${response.status}`);
-    return new VectorTile(new PbfReader(new Uint8Array(await response.arrayBuffer())));
-  })();
-  loading.catch(() => cache.delete(key));
-  cache.set(key, loading);
-  while (cache.size > CACHE_SIZE) cache.delete(cache.keys().next().value as string);
-  return loading;
+/**
+ * A source of vector tiles, decoded once and kept in a small LRU cache.
+ * `url` resolves a tile's address (undefined skips the tile).
+ */
+export const vectorSource = (
+  name: string,
+  url: (z: number, x: number, y: number) => Promise<string | undefined> | string | undefined,
+  cacheSize: number,
+) => {
+  const cache = new Map<string, Promise<VectorTile | undefined>>();
+  return (z: number, x: number, y: number): Promise<VectorTile | undefined> => {
+    const key = `${z}/${x}/${y}`;
+    const hit = cache.get(key);
+    if (hit) {
+      // Refresh its place in the LRU order.
+      cache.delete(key);
+      cache.set(key, hit);
+      return hit;
+    }
+    const loading = (async () => {
+      const address = await url(z, x, y);
+      if (!address) return undefined;
+      const response = await fetch(address);
+      if (response.status === 404 || response.status === 204) return undefined;
+      if (!response.ok) throw new Error(`${name} tile ${key}: HTTP ${response.status}`);
+      return new VectorTile(new PbfReader(new Uint8Array(await response.arrayBuffer())));
+    })();
+    // A failed tile is dropped so the next request retries it.
+    loading.catch(() => cache.delete(key));
+    cache.set(key, loading);
+    while (cache.size > cacheSize) cache.delete(cache.keys().next().value as string);
+    return loading;
+  };
 };
+
+/** The decoded OpenFreeMap tile at z/x/y (at most zoom 14); undefined where there's none (open ocean). */
+export const vectorTile = vectorSource(
+  'OpenFreeMap',
+  async (z, x, y) =>
+    (await tileTemplate()).replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y)),
+  CACHE_SIZE,
+);
 
 /** OSM element behind a feature: OpenMapTiles ids are the OSM id times ten plus 1 (node), 2 (way) or 3 (relation). */
 export const osmElement = (

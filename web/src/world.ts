@@ -4,6 +4,8 @@ import { type Basemap, Globe, type Pick, type View } from './globe/globe.ts';
 import { layerById, layers } from './layers/registry.ts';
 import type { Details, LayerDef, LayerHandle, Range, SearchHit } from './layers/types.ts';
 import { Listeners } from './lib/listeners.ts';
+import { mapillary, panoramax, type ProviderId, type StreetProvider } from './street/providers.ts';
+import { PanoramaViewer } from './street/viewer.ts';
 
 export interface EntityRef {
   readonly layer: string;
@@ -50,6 +52,8 @@ export class World {
   private readonly handles = new Map<string, LayerHandle>();
   private readonly wanted = new Map<string, boolean>();
   private readonly states = new Map<string, LayerState>();
+  /** Street-level panoramas; while one is open, layers hold still and picks are ignored. */
+  readonly street: PanoramaViewer;
   private clearHighlight: (() => void) | undefined;
   private readonly stops: Array<() => void> = [];
 
@@ -58,7 +62,14 @@ export class World {
     this.globe = new Globe(container, config, creditContainer);
     this.available = layers.filter((def) => def.available?.(config) ?? true);
     for (const def of this.available) this.handles.set(def.id, def.create(this.globe));
+    const providers = new Map<ProviderId, StreetProvider>([['panoramax', panoramax]]);
+    if (config.keys.mapillary) providers.set('mapillary', mapillary(config.keys.mapillary));
+    this.street = new PanoramaViewer(this.globe, providers);
     this.stops.push(
+      // Back from a panorama: catch layers up with wherever the view is now.
+      this.street.changed.add((state) => {
+        if (!state) this.apply(this.globe.view, true);
+      }),
       this.globe.viewChanged.add((view) => this.apply(view, false)),
       this.globe.viewSettled.add((view) => this.apply(view, true)),
       this.globe.basemapChanged.add(() => this.apply(this.globe.view, true)),
@@ -94,6 +105,8 @@ export class World {
    * `settled` also recounts what's in view (only then: counting walks every entity).
    */
   private apply(view: View, settled: boolean, only?: string): void {
+    // Inside a panorama the camera stands at street level with everything hidden: layers wait.
+    if (this.street?.isOpen) return;
     let changed = false;
     for (const def of this.available) {
       if (only && def.id !== only) continue;
@@ -158,10 +171,16 @@ export class World {
   }
 
   onPointer(onPick: (pick: Pick) => void, onHover: (pick: Pick) => void): void {
-    this.globe.onPointer(onPick, onHover);
+    this.globe.onPointer(
+      (pick) => {
+        if (!this.street.isOpen) onPick(pick);
+      },
+      (pick) => onHover(this.street.isOpen ? { kind: 'none' } : pick),
+    );
   }
 
   destroy(): void {
+    this.street.destroy();
     this.select(undefined);
     for (const stop of this.stops) stop();
     for (const handle of this.handles.values()) handle.destroy();

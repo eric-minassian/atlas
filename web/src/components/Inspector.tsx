@@ -1,4 +1,4 @@
-import { ArrowUpRight, Crosshair, LocateFixed, X } from 'lucide-react';
+import { ArrowUpRight, Crosshair, Footprints, LocateFixed, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import type { Here } from '../../../src/domain.ts';
@@ -7,6 +7,7 @@ import { useNow } from '../hooks.ts';
 import type { Details, Field, Picture } from '../layers/types.ts';
 import { formatInt, formatLatLon, formatNumber } from '../lib/format.ts';
 import { describeWeather } from '../lib/weather.ts';
+import { distance, type Pano } from '../street/providers.ts';
 import type { EntityRef, World } from '../world.ts';
 
 export type Selection =
@@ -268,13 +269,93 @@ function PlaceInspector({
         </p>
       )}
       {typeof here === 'object' && <Fields fields={fields} />}
+      <StreetLevelPreview world={world} lat={lat} lon={lon} />
       <footer className="flex items-center justify-between border-t px-3 py-2.5">
-        <Button variant="ghost" size="sm" onClick={() => world.globe.flyTo(lat, lon, 1_500_000)}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() =>
+            world.globe.flyTo(lat, lon, Math.max(300, Math.min(1_500_000, world.globe.view.height / 6)))
+          }
+        >
           <Crosshair />
           Zoom in
         </Button>
         <span className="text-[11px] text-muted-foreground/70">Weather: Open-Meteo</span>
       </footer>
     </Panel>
+  );
+}
+
+/** How far from a clicked point a panorama still counts as "here": about half a street's width each way. */
+const STREET_RADIUS = 40;
+/** Only look for panoramas when zoomed in far enough that a click means a street, not a region. */
+const STREET_SEARCH_BELOW = 20_000;
+
+/**
+ * The nearest 360° panorama to a clicked point, from any street-level source,
+ * with a way in. Shows nothing when there's none nearby.
+ */
+function StreetLevelPreview({
+  world,
+  lat,
+  lon,
+}: {
+  readonly world: World;
+  readonly lat: number;
+  readonly lon: number;
+}) {
+  const key = `${lat},${lon}`;
+  const [found, setFound] = useState<{ readonly key: string; readonly pano: Pano | undefined }>();
+  const near = world.globe.view.height < STREET_SEARCH_BELOW;
+  useEffect(() => {
+    if (!near) return undefined;
+    const abort = new AbortController();
+    void (async () => {
+      const results = await Promise.all(
+        world.street.sources.map((source) =>
+          source.nearest(lon, lat, STREET_RADIUS, abort.signal).catch(() => undefined),
+        ),
+      );
+      const panos = results.filter((p): p is Pano => p !== undefined);
+      const nearest = panos.toSorted((a, b) => distance({ lon, lat }, a) - distance({ lon, lat }, b))[0];
+      if (!abort.signal.aborted) setFound({ key, pano: nearest });
+    })();
+    return () => abort.abort();
+  }, [world, key, lat, lon, near]);
+  const pano = found?.key === key ? found.pano : undefined;
+  if (!pano) return null;
+  const date = pano.capturedAt
+    ? new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'short' }).format(pano.capturedAt)
+    : undefined;
+  return (
+    <button
+      type="button"
+      aria-label="Look around from the nearest street-level panorama"
+      onClick={() => void world.street.open(pano)}
+      className="group flex w-full items-center gap-3 border-t px-3 py-2.5 text-left hover:bg-white/[0.04]"
+    >
+      <img
+        src={pano.thumbnail}
+        alt=""
+        className="h-12 w-20 shrink-0 rounded object-cover"
+        referrerPolicy="no-referrer"
+      />
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-1.5 text-[12px] font-medium text-foreground">
+          <Footprints className="size-3.5" />
+          Look around
+        </span>
+        <span className="block truncate text-[11px] text-muted-foreground">
+          {[
+            pano.provider === 'mapillary' ? 'Mapillary' : 'Panoramax',
+            date,
+            `${Math.round(distance({ lon, lat }, pano))} m away`,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        </span>
+      </span>
+    </button>
   );
 }

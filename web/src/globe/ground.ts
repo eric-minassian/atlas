@@ -4,8 +4,14 @@ import type { Globe } from './globe.ts';
 
 /** Above this, heights don't visibly matter and the ellipsoid stands in for the ground. */
 const NEAR = 400_000;
-/** At most this many items are re-seated per settle, nearest the view first, to keep it cheap. */
-const BUDGET = 4000;
+/**
+ * Items re-seated per pass, nearest the view's center first. Each lookup is a
+ * ray cast against a terrain tile (or a render of the 3D tiles on the
+ * Photorealistic base map), so the budget keeps a pass to a few milliseconds.
+ */
+const BUDGET = { satellite: 1500, photoreal: 120 } as const;
+/** Waits this long after the last trigger: while the camera flies or terrain streams, nothing runs. */
+const DEBOUNCE_MS = 300;
 
 /**
  * Things a layer draws on the ground, by index. Point primitives can't clamp
@@ -25,7 +31,7 @@ export interface GroundSet {
 }
 
 export interface GroundTracker {
-  /** Re-seats now: call after replacing the items (a new snapshot). */
+  /** Re-seats soon: call after replacing the items (a new snapshot). */
   refresh(): void;
   stop(): void;
 }
@@ -33,29 +39,43 @@ export interface GroundTracker {
 /** Keeps `set` on the ground as the view and terrain change. */
 export const trackGround = (globe: Globe, set: () => GroundSet | undefined): GroundTracker => {
   const scratch = new Cartesian3();
-  let pending = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let generation = 0;
 
-  const seat = () => {
-    pending = false;
+  const seat = async () => {
+    timer = undefined;
     const items = set();
-    const { bounds, height } = globe.view;
+    const { bounds, height, center } = globe.view;
     if (!items || !bounds || height > NEAR) return;
-    let done = 0;
-    for (let i = 0; i < items.size && done < BUDGET; i++) {
-      const lon = items.lon(i);
-      const lat = items.lat(i);
-      if (!contains(bounds, lon, lat)) continue;
-      const ground = globe.heightAt(lon, lat);
-      if (ground === undefined) continue;
-      items.place(i, Cartesian3.fromDegrees(lon, lat, ground + (items.lift?.(i) ?? 0), undefined, scratch));
-      done++;
+    const pass = ++generation;
+    let indices: number[] = [];
+    for (let i = 0; i < items.size; i++) if (contains(bounds, items.lon(i), items.lat(i))) indices.push(i);
+    const budget = BUDGET[globe.basemap];
+    if (indices.length > budget && center) {
+      const d = (i: number) => (items.lon(i) - center.lon) ** 2 + (items.lat(i) - center.lat) ** 2;
+      indices = indices.toSorted((a, b) => d(a) - d(b)).slice(0, budget);
     }
+    const heights = await globe.groundHeights(indices.map((i) => ({ lon: items.lon(i), lat: items.lat(i) })));
+    // A newer pass (or a new snapshot) superseded this one while heights were sampled.
+    if (pass !== generation || set() !== items) return;
+    indices.forEach((i, k) => {
+      const ground = heights[k];
+      if (ground === undefined) return;
+      items.place(
+        i,
+        Cartesian3.fromDegrees(
+          items.lon(i),
+          items.lat(i),
+          ground + (items.lift?.(i) ?? 0),
+          undefined,
+          scratch,
+        ),
+      );
+    });
   };
-  // Coalesce bursts (a settle and a terrain load together) into one pass on the next frame.
   const schedule = () => {
-    if (pending) return;
-    pending = true;
-    requestAnimationFrame(seat);
+    clearTimeout(timer);
+    timer = setTimeout(() => void seat(), DEBOUNCE_MS);
   };
 
   const stops = [
@@ -70,6 +90,8 @@ export const trackGround = (globe: Globe, set: () => GroundSet | undefined): Gro
   return {
     refresh: schedule,
     stop() {
+      clearTimeout(timer);
+      generation++;
       for (const stop of stops) stop();
     },
   };

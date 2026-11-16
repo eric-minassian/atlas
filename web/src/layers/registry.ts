@@ -1,3 +1,4 @@
+import { streetLevelLayer } from '../street/coverage.ts';
 import { aircraftLayer } from './aircraft.ts';
 import { buildingsLayer } from './buildings.ts';
 import { earthquakeLayer } from './earthquakes.ts';
@@ -30,6 +31,7 @@ export const layers: ReadonlyArray<LayerDef> = [
   radarLayer,
   precipitationLayer,
   poiLayer,
+  streetLevelLayer,
   dayNightLayer,
   referenceLayer,
   roadsLayer,

@@ -60,8 +60,11 @@ export const zoomFor = (height: number): number =>
 
 const MAX_TILES = 12;
 /** Labels placed on screen at most; the rest wait for the camera to come closer. */
-const MAX_SHOWN = 220;
-const PADDING = 3;
+const MAX_SHOWN = 130;
+const MAX_CANDIDATES = 600;
+const DECLUTTER_MS = 180;
+/** Room kept around each label, in pixels: Cesium draws text with its outline a little wider than measured. */
+const PADDING = 6;
 
 const measure = (() => {
   const ctx = document.createElement('canvas').getContext('2d');
@@ -132,10 +135,10 @@ export class VectorLabels {
         this.queueDeclutter();
       },
     }));
-    this.stops = [
-      globe.viewSettled.add(() => void this.load()),
-      globe.viewChanged.add(() => this.queueDeclutter()),
-    ];
+    // Placement runs when the camera stops, not as it moves. Cesium rebuilds a label collection's
+    // whole vertex buffer when updates start or stop arriving between frames, so re-placing labels
+    // during motion would rebuild thousands of glyphs several times a second.
+    this.stops = [globe.viewSettled.add(() => void this.load())];
   }
 
   setActive(active: boolean): void {
@@ -200,7 +203,8 @@ export class VectorLabels {
     if (generation !== this.generation || !this.active) return;
     const next = new Map<string, Candidate>();
     for (const list of results) for (const c of list) if (!next.has(c.key)) next.set(c.key, c);
-    this.rebuild([...next.values()].toSorted((a, b) => a.priority - b.priority));
+    // Only so many can ever be placed; the rest would only grow the buffers Cesium rebuilds.
+    this.rebuild([...next.values()].toSorted((a, b) => a.priority - b.priority).slice(0, MAX_CANDIDATES));
   }
 
   private rebuild(candidates: Candidate[]) {
@@ -219,8 +223,8 @@ export class VectorLabels {
         placed.push(existing);
         continue;
       }
-      const ground = this.globe.heightAt(c.lon, c.lat) ?? 0;
-      const position = Cartesian3.fromDegrees(c.lon, c.lat, ground);
+      // On the ellipsoid until the ground tracker seats it (a ray cast each: batched, not here).
+      const position = Cartesian3.fromDegrees(c.lon, c.lat, 0);
       const font = `${c.weight ?? 500} ${c.size}px Inter, ui-sans-serif, system-ui, sans-serif`;
       const id = this.options.pickable
         ? ({ layer: this.options.layer, key: c.key } satisfies PickId)
@@ -262,13 +266,15 @@ export class VectorLabels {
     this.declutter();
   }
 
+  /** Re-runs placement soon, once for a burst of changes (labels being seated on the ground). */
   private queueDeclutter() {
     if (this.declutterQueued || !this.active) return;
     this.declutterQueued = true;
-    requestAnimationFrame(() => {
+    setTimeout(() => {
       this.declutterQueued = false;
-      this.declutter();
-    });
+      // Hidden (inside a panorama): nothing to place.
+      if (this.labels.show) this.declutter();
+    }, DECLUTTER_MS);
   }
 
   /** Shows labels in priority order, skipping any that would overlap one already shown. */

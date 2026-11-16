@@ -72,7 +72,11 @@ export const buildingsLayer: LayerDef = {
     const picked = new Map<string, Cesium3DTileFeature>();
 
     const load = () => {
-      loading ??= createOsmBuildingsAsync({ style: new Cesium3DTileStyle({ color: `color('${BUILDING}')` }) })
+      loading ??= createOsmBuildingsAsync({
+        style: new Cesium3DTileStyle({ color: `color('${BUILDING}')` }),
+        // Outlines double the geometry each tile uploads; flat-shaded boxes read fine without them.
+        enableShowOutline: false,
+      })
         .then((created) => {
           // The camera stops at rooftops instead of passing through them.
           created.enableCollision = true;
