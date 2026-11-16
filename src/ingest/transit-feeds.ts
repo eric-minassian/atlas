@@ -1,5 +1,4 @@
 import { Effect } from 'effect';
-import { feeds } from '../catalog.ts';
 import type { TransitFeedData } from '../domain.ts';
 import { numberField, readCsv } from './csv.ts';
 import { type Columns, get, IngestError, notModified, okText, type Source, updated } from './source.ts';
@@ -96,7 +95,6 @@ export const parseTransitFeeds = (csv: string): { data: TransitFeedData; unplace
 
 /** The catalog of keyless vehicle-position feeds that `/api/live/transit` draws from, refreshed daily. */
 export const makeTransitFeedSource = (): Source<'transitFeeds'> => ({
-  interval: Effect.succeed(feeds.transitFeeds.intervalSeconds),
   read: (validators) =>
     Effect.gen(function* () {
       const response = yield* get(CATALOG_URL, { validators });

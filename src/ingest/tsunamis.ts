@@ -1,5 +1,4 @@
 import { DateTime, Effect, Option } from 'effect';
-import { feeds } from '../catalog.ts';
 import type { TsunamiBulletin, TsunamiData } from '../domain.ts';
 import { get, IngestError, notModified, okText, round, type Source, updated } from './source.ts';
 
@@ -95,7 +94,6 @@ export const parseTsunamiFeed = (
  * bulletins from the last snapshot; the refresh fails only if both do.
  */
 export const makeTsunamiSource = (): Source<'tsunamis'> => ({
-  interval: Effect.succeed(feeds.tsunamis.intervalSeconds),
   read: (_validators, previous) =>
     Effect.gen(function* () {
       const now = DateTime.toEpochMillis(yield* DateTime.now);

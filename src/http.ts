@@ -12,7 +12,6 @@ import { feeds } from './catalog.ts';
 import { type FeedId, FeedNotReady, feedIds } from './domain.ts';
 import { FeedStore } from './feeds.ts';
 import { HereLookup } from './here.ts';
-import { Sources } from './ingest/index.ts';
 import { Tiles } from './tiles.ts';
 import { TransitLookup } from './transit.ts';
 import { WebcamLookup } from './webcams.ts';
@@ -40,7 +39,6 @@ const SystemHandlers = HttpApiBuilder.group(
   Effect.fn(function* (handlers) {
     const app = yield* AppInfo;
     const store = yield* FeedStore;
-    const sources = yield* Sources;
     const secrets = yield* Secrets;
     const here = yield* HereLookup;
     return handlers
@@ -70,10 +68,8 @@ const SystemHandlers = HttpApiBuilder.group(
         Effect.gen(function* () {
           yield* cacheFor('public, max-age=10, stale-while-revalidate=30');
           const states = yield* store.states;
-          const statuses = yield* Effect.forEach(feedIds, (feed) =>
-            Effect.map(sources[feed].interval.pipe(Effect.provideService(Secrets, secrets)), (interval) =>
-              store.status(feed, interval, states.get(feed)),
-            ),
+          const statuses = feedIds.map((feed) =>
+            store.status(feed, feeds[feed].intervalSeconds, states.get(feed)),
           );
           return { feeds: statuses };
         }),
@@ -233,7 +229,6 @@ export const HttpLive = HttpApiBuilder.layer(Api, { openapiPath: '/api/openapi.j
   Layer.provide([AirportIndex.layer, TransitLookup.layer, BikeLookup.layer, CameraRelay.layer]),
   Layer.provide([
     FeedStore.layer,
-    Sources.layer,
     HereLookup.layer,
     Tiles.layer,
     AircraftNearbyLookup.layer,

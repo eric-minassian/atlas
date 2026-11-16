@@ -1,6 +1,5 @@
 import type { Store } from '@ericminassian/platform';
 import { Clock, Effect, Option, Schema } from 'effect';
-import { feeds } from '../catalog.ts';
 import { AlertSeverity, Polygon, type WeatherAlert, type WeatherAlertData } from '../domain.ts';
 import { GeoJsonArea, toPolygons } from './geometry.ts';
 import { decodeJson, get, IngestError, okText, type Source, updated } from './source.ts';
@@ -161,7 +160,6 @@ export const makeWeatherAlertSource = (store: Store): Source<'weatherAlerts'> =>
   });
 
   return {
-    interval: Effect.succeed(feeds.weatherAlerts.intervalSeconds),
     // No conditional request: zones still pending need the alerts even when they haven't changed.
     read: () =>
       Effect.gen(function* () {

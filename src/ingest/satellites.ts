@@ -1,5 +1,4 @@
 import { Effect, Schema } from 'effect';
-import { feeds } from '../catalog.ts';
 import type { SatelliteData, SatelliteGroup } from '../domain.ts';
 import { type Columns, decodeJson, get, notModified, okText, type Source, updated } from './source.ts';
 
@@ -98,7 +97,6 @@ const NOT_UPDATED = /has not updated since your last successful\s+download/i;
 
 /** Every active satellite's latest elements, from CelesTrak. */
 export const makeSatelliteSource = (): Source<'satellites'> => ({
-  interval: Effect.succeed(feeds.satellites.intervalSeconds),
   read: (validators) =>
     Effect.gen(function* () {
       const response = yield* get(GP_URL, { validators });

@@ -16,7 +16,12 @@ const COLOR_FLAT = 'rgba(70, 170, 255, 0.4)';
 
 export const coverageFilters: ReadonlyArray<Filter> = [
   { id: 'panoramax', label: 'Panoramax', color: '#46aaff' },
-  { id: 'mapillary', label: 'Mapillary', color: '#46aaff' },
+  {
+    id: 'mapillary',
+    label: 'Mapillary',
+    color: '#46aaff',
+    available: (config) => config.keys.mapillary !== null,
+  },
 ];
 
 interface Source {

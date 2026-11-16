@@ -250,6 +250,8 @@ function LayerRow({
   const hidden = new Set(settings.hidden[layer.id] ?? []);
   const id = `layer-${layer.id}`;
   const inView = state.kind === 'shown' ? state.inView : undefined;
+  // A filter for a source this deployment hasn't configured would switch nothing.
+  const offeredFilters = layer.filters?.filter((f) => !world || (f.available?.(world.config) ?? true));
 
   const setOpacity = (value: number) =>
     onChange({ ...settings, opacity: { ...settings.opacity, [layer.id]: value } });
@@ -276,7 +278,7 @@ function LayerRow({
           <LiveMeta layer={layer.id} inView={inView} />
         )}
       </div>
-      {(layer.legend || layer.filters || opacity !== undefined) && (
+      {(layer.legend || (offeredFilters && offeredFilters.length > 1) || opacity !== undefined) && (
         <div className="mt-2 ml-[38px] space-y-2 pb-0.5">
           {layer.legend && (
             <ul className="flex flex-wrap gap-x-3 gap-y-1">
@@ -288,9 +290,9 @@ function LayerRow({
               ))}
             </ul>
           )}
-          {layer.filters && (
+          {offeredFilters && offeredFilters.length > 1 && (
             <ul className="flex flex-wrap gap-1">
-              {layer.filters.map((filter) => {
+              {offeredFilters.map((filter) => {
                 const on = !hidden.has(filter.id);
                 return (
                   <li key={filter.id}>

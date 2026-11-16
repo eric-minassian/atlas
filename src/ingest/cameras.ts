@@ -1,6 +1,5 @@
 import { Effect, Option, Result, Schema } from 'effect';
 import type { HttpClient } from 'effect/http';
-import { feeds } from '../catalog.ts';
 import type { CameraData, CameraOperator } from '../domain.ts';
 import { type Columns, decodeJson, get, IngestError, okText, round, type Source, updated } from './source.ts';
 
@@ -333,7 +332,6 @@ const parts: ReadonlyArray<Part> = [
 ];
 
 export const makeCameraSource = (): Source<'cameras'> => ({
-  interval: Effect.succeed(feeds.cameras.intervalSeconds),
   read: (_validators, previous) =>
     Effect.gen(function* () {
       const results = yield* Effect.forEach(

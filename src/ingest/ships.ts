@@ -1,7 +1,6 @@
 import { Secrets } from '@ericminassian/platform';
 import { Clock, Effect, Option, Predicate, Redacted, Result, Schema } from 'effect';
 import { Socket } from 'effect/socket';
-import { feeds } from '../catalog.ts';
 import type { ShipData } from '../domain.ts';
 import { type Columns, decodeJson, get, IngestError, okText, round, type Source, updated } from './source.ts';
 
@@ -526,7 +525,6 @@ export interface ShipSourceOptions {
 }
 
 export const makeShipSource = (options: ShipSourceOptions = {}): Source<'ships'> => ({
-  interval: Effect.succeed(feeds.ships.intervalSeconds),
   read: (_validators, previous) =>
     Effect.gen(function* () {
       const key = yield* (yield* Secrets).getOptional('AISSTREAM_KEY');

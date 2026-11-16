@@ -1,5 +1,4 @@
 import { Effect } from 'effect';
-import { feeds } from '../catalog.ts';
 import type { AirportData, AirportType } from '../domain.ts';
 import { numberField, readCsv } from './csv.ts';
 import {
@@ -167,7 +166,6 @@ export const parseAirports = (
  * (304) stands for both.
  */
 export const makeAirportSource = (): Source<'airports'> => ({
-  interval: Effect.succeed(feeds.airports.intervalSeconds),
   read: (validators) =>
     Effect.gen(function* () {
       const response = yield* get(`${BASE_URL}/airports.csv`, { validators });

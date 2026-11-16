@@ -1,5 +1,6 @@
 import { type Bounds, tileAt, unwrap } from '../../../src/area.ts';
 import type { Globe, View } from '../globe/globe.ts';
+import { Listeners } from '../lib/listeners.ts';
 
 export interface Tile {
   readonly z: number;
@@ -66,6 +67,8 @@ const CONCURRENCY = 4;
  * layer hidden), it loads nothing and holds nothing.
  */
 export class AreaTiles<T> {
+  /** Fires after `onChange`: hand it to the layer's `loaded` so the panel recounts what's in view. */
+  readonly loaded = new Listeners<void>();
   private readonly cache = new Map<string, { readonly tile: Tile; data: T; loadedAt: number }>();
   private wanted: Tile[] = [];
   private readonly inFlight = new Map<string, AbortController>();
@@ -165,6 +168,7 @@ export class AreaTiles<T> {
     if (signature === this.emitted) return;
     this.emitted = signature;
     this.options.onChange(tiles);
+    this.loaded.emit();
   }
 
   destroy(): void {

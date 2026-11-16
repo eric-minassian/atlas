@@ -1,5 +1,4 @@
 import { Effect, Option } from 'effect';
-import { feeds } from '../catalog.ts';
 import type { BuoyData } from '../domain.ts';
 import {
   type Columns,
@@ -142,7 +141,6 @@ export const parseBuoys = (
 };
 
 export const makeBuoySource = (): Source<'buoys'> => ({
-  interval: Effect.succeed(feeds.buoys.intervalSeconds),
   read: (validators, previous) =>
     Effect.gen(function* () {
       const response = yield* get(OBS_URL, { validators });

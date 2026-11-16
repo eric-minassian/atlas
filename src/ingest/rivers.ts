@@ -1,5 +1,4 @@
 import { DateTime, Effect, Option, Schema } from 'effect';
-import { feeds } from '../catalog.ts';
 import type { FloodWarning, GaugeCountry, GaugeData, GaugeStatus, RiverData } from '../domain.ts';
 import { type Columns, decodeJson, get, IngestError, okText, round, type Source, updated } from './source.ts';
 
@@ -422,7 +421,6 @@ const readDe = get(DE_URL).pipe(Effect.flatMap(okText), Effect.flatMap(decodeJso
  * from the last snapshot, and the refresh fails only when all of them do.
  */
 export const makeRiverSource = (): Source<'rivers'> => ({
-  interval: Effect.succeed(feeds.rivers.intervalSeconds),
   read: (_validators, previous) =>
     Effect.gen(function* () {
       const now = DateTime.toEpochMillis(yield* DateTime.now);

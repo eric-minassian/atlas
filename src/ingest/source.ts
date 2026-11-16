@@ -33,9 +33,8 @@ export class IngestError extends Schema.TaggedError<IngestError, { readonly bran
   },
 ) {}
 
+/** A feed's upstream. How often it's read is the feed's `intervalSeconds` in src/catalog.ts. */
 export interface Source<F extends FeedId> {
-  /** Seconds between refreshes; may depend on configuration (credentials). */
-  readonly interval: Effect.Effect<number, never, Secrets>;
   /**
    * Reads the source. `previous` loads the payload currently published, for
    * sources that build on it (a stream sampled for a minute only sees part of

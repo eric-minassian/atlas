@@ -1,5 +1,4 @@
 import { Effect, Schema } from 'effect';
-import { feeds } from '../catalog.ts';
 import type { VolcanoData } from '../domain.ts';
 import { type Columns, decodeJson, get, okText, round, type Source, updated } from './source.ts';
 
@@ -93,7 +92,6 @@ export const parseVolcanoes = (volcanoes: Volcanoes, eruptions: Eruptions): Volc
 };
 
 export const makeVolcanoSource = (): Source<'volcanoes'> => ({
-  interval: Effect.succeed(feeds.volcanoes.intervalSeconds),
   read: () =>
     Effect.gen(function* () {
       const [volcanoes, eruptions] = yield* Effect.all(

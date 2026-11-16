@@ -1,5 +1,4 @@
 import { Effect, Schema } from 'effect';
-import { feeds } from '../catalog.ts';
 import { AlertLevel, type Earthquake, type EarthquakeData } from '../domain.ts';
 import { decodeJson, get, notModified, okText, round, type Source, updated } from './source.ts';
 
@@ -45,7 +44,6 @@ export const parseQuakes = (collection: FeatureCollection): EarthquakeData => ({
 });
 
 export const makeEarthquakeSource = (): Source<'earthquakes'> => ({
-  interval: Effect.succeed(feeds.earthquakes.intervalSeconds),
   read: (validators) =>
     Effect.gen(function* () {
       const response = yield* get(FEED_URL, { validators });

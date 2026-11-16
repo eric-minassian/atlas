@@ -76,6 +76,8 @@ export interface Filter {
   readonly id: string;
   readonly label: string;
   readonly color: string;
+  /** Whether this deployment can show it (its source's key is set); offered always when absent. */
+  readonly available?: (config: ClientConfig) => boolean;
 }
 
 /** Camera heights above the ellipsoid, in meters, between which a layer draws. */

@@ -1,5 +1,4 @@
 import { Clock, Duration, Effect, Option, Schema } from 'effect';
-import { feeds } from '../catalog.ts';
 import type { BikeSystemData } from '../domain.ts';
 import { makeHostGate } from '../gate.ts';
 import { Discovery, feedUrls, hasBicycles, isPhysical, StationInformation, VehicleTypes } from '../gbfs.ts';
@@ -228,7 +227,6 @@ export const makeBikeSystemSource = (): Source<'bikeSystems'> => {
   });
 
   return {
-    interval: Effect.succeed(feeds.bikeSystems.intervalSeconds),
     read: (_validators, previous) =>
       Effect.gen(function* () {
         const listed = parseSystems(yield* get(SYSTEMS_URL).pipe(Effect.flatMap(okText)));

@@ -1,5 +1,4 @@
 import { DateTime, Effect, Option, Schema } from 'effect';
-import { feeds } from '../catalog.ts';
 import { type Disaster, type DisasterData, DisasterType, type Polygon } from '../domain.ts';
 import { GeoJsonArea, toPolygons } from './geometry.ts';
 import { decodeJson, get, IngestError, okText, round, type Source, updated } from './source.ts';
@@ -173,7 +172,6 @@ const readList = (url: string) =>
 
 /** Current GDACS events, with outlines for cyclones, droughts and floods. */
 export const makeDisasterSource = (): Source<'disasters'> => ({
-  interval: Effect.succeed(feeds.disasters.intervalSeconds),
   read: (_validators, previous) =>
     Effect.gen(function* () {
       const now = DateTime.toEpochMillis(yield* DateTime.now);

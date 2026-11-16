@@ -1,5 +1,4 @@
 import { Effect, Schema } from 'effect';
-import { feeds } from '../catalog.ts';
 import type { AuroraData } from '../domain.ts';
 import { decodeJson, get, IngestError, notModified, okText, type Source, updated } from './source.ts';
 
@@ -57,7 +56,6 @@ const likelyCells = (grid: string): number => {
 };
 
 export const makeAuroraSource = (): Source<'aurora'> => ({
-  interval: Effect.succeed(feeds.aurora.intervalSeconds),
   read: (validators) =>
     Effect.gen(function* () {
       const response = yield* get(OVATION_URL, { validators });

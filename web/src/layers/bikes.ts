@@ -212,6 +212,7 @@ export const bikeLayer: LayerDef = {
     };
 
     return {
+      loaded: tiles.loaded,
       setVisible(visible) {
         billboards.show = visible;
         labels.show = visible;

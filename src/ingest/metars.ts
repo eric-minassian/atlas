@@ -1,6 +1,5 @@
 import { Effect } from 'effect';
 import type { HttpClientResponse } from 'effect/http';
-import { feeds } from '../catalog.ts';
 import { FlightCategory, type MetarData } from '../domain.ts';
 import { type Columns, get, IngestError, notModified, round, type Source, updated } from './source.ts';
 
@@ -167,7 +166,6 @@ const gunzipText = (response: HttpClientResponse.HttpClientResponse) =>
   });
 
 export const makeMetarSource = (): Source<'metars'> => ({
-  interval: Effect.succeed(feeds.metars.intervalSeconds),
   read: (validators) =>
     Effect.gen(function* () {
       const response = yield* get(CSV_URL, { validators });

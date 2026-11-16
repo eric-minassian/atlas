@@ -1,6 +1,7 @@
 import { Metrics, Queues, type Secrets } from '@ericminassian/platform';
 import { Context, DateTime, Effect, Layer, Result } from 'effect';
 import type { HttpClient } from 'effect/http';
+import { feeds } from './catalog.ts';
 import { type FeedId, feedIds } from './domain.ts';
 import { type FeedState, FeedStore } from './feeds.ts';
 import { type Source, Sources, type Validators } from './ingest/index.ts';
@@ -38,7 +39,6 @@ export class Refresher extends Context.Service<
       const metrics = yield* Metrics;
       // Sources read secrets (credentials) and call out over HTTP.
       const sourceContext = yield* Effect.context<HttpClient.HttpClient | Secrets>();
-      const intervalOf = (feed: FeedId) => sources[feed].interval.pipe(Effect.provideContext(sourceContext));
       const now = Effect.map(DateTime.now, DateTime.toEpochMillis);
 
       const tick = Effect.gen(function* () {
@@ -46,8 +46,7 @@ export class Refresher extends Context.Service<
         const states = yield* store.states;
         const due: FeedId[] = [];
         for (const feed of feedIds) {
-          const interval = yield* intervalOf(feed);
-          if (isDue(states.get(feed), interval, at)) due.push(feed);
+          if (isDue(states.get(feed), feeds[feed].intervalSeconds, at)) due.push(feed);
         }
         if (due.length > 0)
           yield* queues.sendBatch(
@@ -62,8 +61,7 @@ export class Refresher extends Context.Service<
         (sources[feed] as Source<F>).read(validators, store.payload(feed));
 
       const refresh = Effect.fn('Refresher.refresh')(function* (feed: FeedId) {
-        const interval = yield* intervalOf(feed);
-        const validators = yield* store.begin(feed, interval);
+        const validators = yield* store.begin(feed, feeds[feed].intervalSeconds);
         const started = yield* now;
         const result = yield* read(feed, validators).pipe(
           Effect.provideContext(sourceContext),

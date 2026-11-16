@@ -11,7 +11,7 @@ import type { Details, Filter, LayerDef, LayerHandle, SearchHit } from './types.
 
 const kinds: ReadonlyArray<Filter> = [
   { id: 'traffic', label: 'Traffic', color: '#f2b84b' },
-  { id: 'webcams', label: 'Webcams', color: '#5fd4c4' },
+  { id: 'webcams', label: 'Webcams', color: '#5fd4c4', available: (config) => config.sources.windy },
 ];
 const trafficColor = Color.fromCssColorString(kinds[0]?.color ?? '#f2b84b');
 const webcamColor = Color.fromCssColorString(kinds[1]?.color ?? '#5fd4c4');

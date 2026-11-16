@@ -1,5 +1,4 @@
 import { Effect, Schema } from 'effect';
-import { feeds } from '../catalog.ts';
 import type { AirQualityData } from '../domain.ts';
 import { type Columns, decodeJson, get, notModified, okText, round, type Source, updated } from './source.ts';
 
@@ -104,7 +103,6 @@ export const parseAirQuality = (
 };
 
 export const makeAirQualitySource = (): Source<'airQuality'> => ({
-  interval: Effect.succeed(feeds.airQuality.intervalSeconds),
   read: (validators) =>
     Effect.gen(function* () {
       // The server now and then drops the connection partway through the 4 MB body: read it again once.

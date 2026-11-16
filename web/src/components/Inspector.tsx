@@ -137,7 +137,7 @@ function EntityInspector({
             onClick={() => details.extent && world.globe.flyToBounds(details.extent)}
           >
             <Crosshair />
-            Show all
+            Zoom to
           </Button>
         ) : (
           <span />

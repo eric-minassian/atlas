@@ -457,6 +457,7 @@ export const airportLayer: LayerDef = {
     };
 
     return {
+      loaded: tiles.loaded,
       setVisible(next) {
         visible = next;
         billboards.show = next;

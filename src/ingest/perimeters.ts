@@ -1,5 +1,5 @@
 import { Effect, Schema } from 'effect';
-import { feeds, wfigsPerimeters } from '../catalog.ts';
+import { wfigsPerimeters } from '../catalog.ts';
 import type { FirePerimeter, FirePerimeterData } from '../domain.ts';
 import { centerOf, GeoJsonArea, toPolygons } from './geometry.ts';
 import { decodeJson, get, okText, round, type Source, updated } from './source.ts';
@@ -113,7 +113,6 @@ export const parsePerimeters = (features: ReadonlyArray<Feature>): FirePerimeter
 };
 
 export const makePerimeterSource = (): Source<'firePerimeters'> => ({
-  interval: Effect.succeed(feeds.firePerimeters.intervalSeconds),
   read: () =>
     Effect.gen(function* () {
       const features: Feature[] = [];

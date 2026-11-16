@@ -249,6 +249,7 @@ export const transitLayer: LayerDef = {
     };
 
     return {
+      loaded: tiles.loaded,
       setVisible(visible) {
         billboards.show = visible;
         tiles.setActive(visible);

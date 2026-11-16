@@ -1,5 +1,4 @@
 import { Effect } from 'effect';
-import { feeds } from '../catalog.ts';
 import type { FireData } from '../domain.ts';
 import {
   type Columns,
@@ -82,7 +81,6 @@ const hhmm = (value: string | undefined): string => {
 };
 
 export const makeFireSource = (): Source<'fires'> => ({
-  interval: Effect.succeed(feeds.fires.intervalSeconds),
   read: (validators) =>
     Effect.gen(function* () {
       const response = yield* get(CSV_URL, { validators });

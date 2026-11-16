@@ -1,5 +1,4 @@
 import { Clock, Effect, Option, Predicate, Result } from 'effect';
-import { feeds } from '../catalog.ts';
 import type { LightningData } from '../domain.ts';
 import { type Columns, get, IngestError, okText, round, type Source, updated } from './source.ts';
 
@@ -276,7 +275,6 @@ export const mergeFlashes = (
 };
 
 export const makeLightningSource = (): Source<'lightning'> => ({
-  interval: Effect.succeed(feeds.lightning.intervalSeconds),
   read: (_validators, previous) =>
     Effect.gen(function* () {
       const now = yield* Clock.currentTimeMillis;
