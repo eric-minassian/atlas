@@ -111,6 +111,14 @@ export const pitchFor = (height: number): number => {
   return -CesiumMath.PI_OVER_TWO + (STREET_PITCH + CesiumMath.PI_OVER_TWO) * eased;
 };
 
+/**
+ * Ground heights outside these (meters above the ellipsoid) come from terrain
+ * loaded only coarsely, whose triangles can sit kilometers off the surface far
+ * from the camera: the Dead Sea shore and Everest's summit, with margin.
+ */
+const plausible = (height: number | undefined): number | undefined =>
+  height !== undefined && height > -600 && height < 9_000 ? height : undefined;
+
 /** Terrain level heights are sampled at without the globe: about 20 m apart, plenty for a marker. */
 const TERRAIN_SAMPLE_LEVEL = 13;
 
@@ -434,7 +442,7 @@ export class Globe {
   heightAt(lon: number, lat: number): number | undefined {
     // Hidden (inside a panorama, or under Photorealistic 3D), the globe can't answer.
     if (this.isolated || !this.scene.globe.show) return undefined;
-    return this.scene.globe.getHeight(Cartographic.fromDegrees(lon, lat));
+    return plausible(this.scene.globe.getHeight(Cartographic.fromDegrees(lon, lat)));
   }
 
   /**
@@ -453,7 +461,7 @@ export class Globe {
       TERRAIN_SAMPLE_LEVEL,
       points.map((p) => Cartographic.fromDegrees(p.lon, p.lat)),
     ).catch(() => []);
-    return points.map((_, i) => sampled[i]?.height);
+    return points.map((_, i) => plausible(sampled[i]?.height));
   }
 
   /** Lets a layer resolve picks of things it can't tag with a `PickId` (3D tile features). */

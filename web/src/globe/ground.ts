@@ -14,6 +14,22 @@ import type { Globe } from './globe.ts';
 /** Above this, heights don't visibly matter and the ellipsoid stands in for the ground. */
 const NEAR = 400_000;
 /**
+ * Items farther than this many camera heights from the view's center aren't
+ * seated: they're beyond the detail terrain has loaded for, and a tilted view
+ * reaches the horizon.
+ */
+const REACH = 20;
+const MIN_REACH = 30_000;
+const METERS_PER_DEGREE = 111_320;
+
+/** Whether a point is near enough to the view's center to be worth a ground height. */
+const nearCenter = (view: Globe['view'], lon: number, lat: number): boolean => {
+  const { center, height } = view;
+  if (!center) return false;
+  const x = (lon - center.lon) * Math.cos((center.lat * Math.PI) / 180);
+  return Math.hypot(x, lat - center.lat) * METERS_PER_DEGREE <= Math.max(MIN_REACH, height * REACH);
+};
+/**
  * Items re-seated per pass, nearest the view's center first. Each lookup is a
  * ray cast against a loaded terrain tile (or, under Photorealistic 3D, a
  * terrain sample), so the budget keeps a pass short.
@@ -81,7 +97,11 @@ export const trackGround = (globe: Globe, set: () => GroundSet | undefined): Gro
     if (!items || !bounds || height > NEAR) return;
     const pass = ++generation;
     let indices: number[] = [];
-    for (let i = 0; i < items.size; i++) if (contains(bounds, items.lon(i), items.lat(i))) indices.push(i);
+    for (let i = 0; i < items.size; i++) {
+      const lon = items.lon(i);
+      const lat = items.lat(i);
+      if (contains(bounds, lon, lat) && nearCenter(globe.view, lon, lat)) indices.push(i);
+    }
     if (indices.length > BUDGET && center) {
       const d = (i: number) => (items.lon(i) - center.lon) ** 2 + (items.lat(i) - center.lat) ** 2;
       indices = indices.toSorted((a, b) => d(a) - d(b)).slice(0, BUDGET);
@@ -157,7 +177,7 @@ export const followGround = (
       Cartographic.fromCartesian(item.position, undefined, carto);
       const lon = CesiumMath.toDegrees(carto.longitude);
       const lat = CesiumMath.toDegrees(carto.latitude);
-      if (contains(bounds, lon, lat)) wanted.push({ item, lon, lat });
+      if (contains(bounds, lon, lat) && nearCenter(globe.view, lon, lat)) wanted.push({ item, lon, lat });
     });
     const heights = await globe.groundHeights(wanted);
     if (pass !== generation || globe.basemap !== 'photoreal') return;
