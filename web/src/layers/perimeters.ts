@@ -41,6 +41,7 @@ export const perimeterLayer: LayerDef = {
   legend: kinds.map(({ label, color }) => ({ label, color })),
   create(globe): LayerHandle {
     const shapes = new GroundShapes(globe, 'fire-perimeters');
+    const selection = new GroundShapes(globe, 'fire-perimeters');
     // A marker per fire: most perimeters are too small to see from beyond a few hundred kilometers.
     const points = globe.scene.primitives.add(new PointPrimitiveCollection());
     let fires: ReadonlyArray<FirePerimeter> = [];
@@ -62,16 +63,19 @@ export const perimeterLayer: LayerDef = {
       shapes.set(
         fires.map((fire) => {
           const color = colors.get(kindOf(fire)) as Color;
-          const on = fire.id === selected;
           return {
             key: fire.id,
             polygons: fire.polygons,
-            fill: color.withAlpha(on ? 0.45 : 0.3),
-            outline: on ? SELECTED : color.withAlpha(0.95),
-            width: on ? 2.5 : 1.5,
+            fill: color.withAlpha(0.3),
+            outline: color.withAlpha(0.95),
           };
         }),
       );
+    };
+
+    const outlineSelected = () => {
+      const fire = selected === undefined ? undefined : byId.get(selected)?.fire;
+      selection.set(fire ? [{ key: fire.id, polygons: fire.polygons, outline: SELECTED, width: 2.5 }] : []);
     };
 
     const render = (snapshot: Snapshot<'firePerimeters'>) => {
@@ -94,6 +98,7 @@ export const perimeterLayer: LayerDef = {
       seated = [...byId.values()];
       ground.refresh();
       draw();
+      outlineSelected();
     };
 
     const describe = (id: string): Details | undefined => {
@@ -153,11 +158,13 @@ export const perimeterLayer: LayerDef = {
       setVisible(visible) {
         points.show = visible;
         shapes.setVisible(visible);
+        selection.setVisible(visible);
         if (visible && !unsubscribe) unsubscribe = feedPoller.subscribe('firePerimeters', render);
         if (!visible && unsubscribe) {
           unsubscribe();
           unsubscribe = undefined;
           shapes.clear();
+          selection.clear();
           points.removeAll();
           fires = [];
           byId = new Map();
@@ -167,11 +174,14 @@ export const perimeterLayer: LayerDef = {
       details: describe,
       highlight(id) {
         selected = id;
-        draw();
+        const point = byId.get(id)?.point;
+        if (point) point.outlineColor = SELECTED;
+        outlineSelected();
         return () => {
+          if (point) point.outlineColor = Color.BLACK.withAlpha(0.6);
           if (selected !== id) return;
           selected = undefined;
-          draw();
+          outlineSelected();
         };
       },
       search(query, limit) {
@@ -204,6 +214,7 @@ export const perimeterLayer: LayerDef = {
         ground.stop();
         unsubscribe?.();
         shapes.destroy();
+        selection.destroy();
         globe.scene.primitives.remove(points);
       },
     };

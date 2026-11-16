@@ -115,6 +115,7 @@ export const weatherAlertLayer: LayerDef = {
   filters: groups.map(({ id, label, color }) => ({ id, label, color })),
   create(globe): LayerHandle {
     const shapes = new GroundShapes(globe, 'weather-alerts');
+    const selection = new GroundShapes(globe, 'weather-alerts');
     let drawn: ReadonlyArray<Drawn> = [];
     let byId = new Map<string, Drawn>();
     let shown: ReadonlySet<string> = new Set(groups.map((g) => g.id));
@@ -128,17 +129,25 @@ export const weatherAlertLayer: LayerDef = {
         const d = drawn[i] as Drawn;
         if (!shown.has(d.group) || d.polygons.length === 0) continue;
         const color = colorOf.get(d.group) as Color;
-        const on = d.alert.id === selected;
         const strong = d.alert.severity === 'Extreme' || d.alert.severity === 'Severe';
         areas.push({
           key: d.alert.id,
           polygons: d.polygons,
-          fill: color.withAlpha(on ? 0.55 : fillAlpha[d.alert.severity]),
-          outline: on ? Color.WHITE : color.withAlpha(strong ? 0.95 : 0.7),
-          width: on ? 2.5 : strong ? 1.8 : 1,
+          fill: color.withAlpha(fillAlpha[d.alert.severity]),
+          outline: color.withAlpha(strong ? 0.95 : 0.7),
+          width: strong ? 1.8 : 1,
         });
       }
       shapes.set(areas);
+    };
+
+    const outlineSelected = () => {
+      const d = selected === undefined ? undefined : byId.get(selected);
+      selection.set(
+        d && shown.has(d.group)
+          ? [{ key: d.alert.id, polygons: d.polygons, outline: Color.WHITE, width: 2.5 }]
+          : [],
+      );
     };
 
     const render = (snapshot: Snapshot<'weatherAlerts'>) => {
@@ -149,6 +158,7 @@ export const weatherAlertLayer: LayerDef = {
       });
       byId = new Map(drawn.map((d) => [d.alert.id, d]));
       draw();
+      outlineSelected();
     };
 
     const describe = (id: string): Details | undefined => {
@@ -208,11 +218,13 @@ export const weatherAlertLayer: LayerDef = {
     return {
       setVisible(visible) {
         shapes.setVisible(visible);
+        selection.setVisible(visible);
         if (visible && !unsubscribe) unsubscribe = feedPoller.subscribe('weatherAlerts', render);
         if (!visible && unsubscribe) {
           unsubscribe();
           unsubscribe = undefined;
           shapes.clear();
+          selection.clear();
           drawn = [];
           byId = new Map();
         }
@@ -220,15 +232,16 @@ export const weatherAlertLayer: LayerDef = {
       setFilter(visible) {
         shown = visible;
         draw();
+        outlineSelected();
       },
       details: describe,
       highlight(id) {
         selected = id;
-        draw();
+        outlineSelected();
         return () => {
           if (selected !== id) return;
           selected = undefined;
-          draw();
+          outlineSelected();
         };
       },
       search(query, limit) {
@@ -255,6 +268,7 @@ export const weatherAlertLayer: LayerDef = {
       destroy() {
         unsubscribe?.();
         shapes.destroy();
+        selection.destroy();
       },
     };
   },

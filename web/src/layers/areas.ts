@@ -16,11 +16,12 @@ import type { Bounds } from '../../../src/area.ts';
 import type { Polygon } from '../../../src/domain.ts';
 import type { Globe, PickId } from '../globe/globe.ts';
 
-/** Something drawn on the ground as filled outlines. */
+/** Something drawn on the ground: filled, outlined, or both. */
 export interface Area {
   readonly key: string;
   readonly polygons: ReadonlyArray<Polygon>;
-  readonly fill: Color;
+  /** Fill color; none when absent. */
+  readonly fill?: Color;
   /** Outline color; none when absent. */
   readonly outline?: Color;
   /** Outline width, pixels. */
@@ -63,7 +64,8 @@ const closed = (ring: ReadonlyArray<number>): number[] => [...ring, ring[0] as n
 
 /**
  * Filled polygons and lines draped on terrain (or on 3D tiles), rebuilt
- * whenever the layer hands over a new set. Ground primitives build in web
+ * whenever the layer hands over a new set. Layers keep the selected item's
+ * outline in a set of its own, so selecting doesn't rebuild everything. Ground primitives build in web
  * workers, so the previous set stays until the new one is ready, rather than
  * the ground going blank for a moment.
  */
@@ -93,18 +95,19 @@ export class GroundShapes {
         const [outer, ...holes] = polygon;
         if (!outer || outer.length < 6) continue;
         const id = { layer: this.layer, key: area.key, part: part++ } satisfies PickId & { part: number };
-        fills.push(
-          new GeometryInstance({
-            geometry: new PolygonGeometry({
-              polygonHierarchy: new PolygonHierarchy(
-                Cartesian3.fromDegreesArray([...outer]),
-                holes.map((hole) => new PolygonHierarchy(Cartesian3.fromDegreesArray([...hole]))),
-              ),
+        if (area.fill)
+          fills.push(
+            new GeometryInstance({
+              geometry: new PolygonGeometry({
+                polygonHierarchy: new PolygonHierarchy(
+                  Cartesian3.fromDegreesArray([...outer]),
+                  holes.map((hole) => new PolygonHierarchy(Cartesian3.fromDegreesArray([...hole]))),
+                ),
+              }),
+              attributes: { color: ColorGeometryInstanceAttribute.fromColor(area.fill) },
+              id,
             }),
-            attributes: { color: ColorGeometryInstanceAttribute.fromColor(area.fill) },
-            id,
-          }),
-        );
+          );
         if (area.outline)
           for (const ring of polygon)
             outlines.push(

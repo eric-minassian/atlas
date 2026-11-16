@@ -151,6 +151,7 @@ export const disasterLayer: LayerDef = {
   create(globe): LayerHandle {
     const badges = globe.scene.primitives.add(new BillboardCollection({ scene: globe.scene }));
     const shapes = new GroundShapes(globe, 'disasters');
+    const selection = new GroundShapes(globe, 'disasters');
     let events: ReadonlyArray<Disaster> = [];
     let bulletins: ReadonlyArray<TsunamiBulletin> = [];
     let items = new Map<string, { readonly item: Item; readonly badge: Billboard }>();
@@ -201,19 +202,34 @@ export const disasterLayer: LayerDef = {
       for (const e of events) {
         if (!shown.has(e.type)) continue;
         const color = alertOf.get(e.alert)?.fill ?? Color.WHITE;
-        const on = e.id === selected;
         if (e.areas.length > 0)
           areas.push({
             key: e.id,
             polygons: e.areas,
-            fill: color.withAlpha(on ? 0.3 : 0.16),
-            outline: on ? Color.WHITE : color.withAlpha(0.75),
-            width: on ? 2 : 1.2,
+            fill: color.withAlpha(0.16),
+            outline: color.withAlpha(0.75),
+            width: 1.2,
           });
         for (const positions of e.track)
-          lines.push({ key: e.id, positions, color: on ? Color.WHITE : color.withAlpha(0.9), width: 2 });
+          lines.push({ key: e.id, positions, color: color.withAlpha(0.9), width: 2 });
       }
       shapes.set(areas, lines);
+      outlineSelected();
+    };
+
+    /** The selected event's cone, area and track, outlined in white over the rest. */
+    const outlineSelected = () => {
+      const entry = selected === undefined ? undefined : items.get(selected);
+      const e = entry?.item.source === 'gdacs' && shown.has(entry.item.kind) ? entry.item.event : undefined;
+      selection.set(
+        e && e.areas.length > 0 ? [{ key: e.id, polygons: e.areas, outline: Color.WHITE, width: 2 }] : [],
+        (e?.track ?? []).map((positions) => ({
+          key: e?.id ?? '',
+          positions,
+          color: Color.WHITE,
+          width: 2.5,
+        })),
+      );
     };
 
     const describe = (key: string): Details | undefined => {
@@ -228,6 +244,7 @@ export const disasterLayer: LayerDef = {
       setVisible(visible) {
         badges.show = visible;
         shapes.setVisible(visible);
+        selection.setVisible(visible);
         if (visible && stops.length === 0)
           stops = [
             feedPoller.subscribe('disasters', (snapshot: Snapshot<'disasters'>) => {
@@ -247,6 +264,7 @@ export const disasterLayer: LayerDef = {
           badges.removeAll();
           items = new Map();
           shapes.clear();
+          selection.clear();
         }
       },
       setFilter(visible) {
@@ -256,11 +274,17 @@ export const disasterLayer: LayerDef = {
       details: describe,
       highlight(key) {
         selected = key;
-        draw();
+        const restyle = () => {
+          const entry = items.get(key);
+          if (entry) entry.badge.scale = scaleOf(entry.item);
+        };
+        restyle();
+        outlineSelected();
         return () => {
           if (selected !== key) return;
           selected = undefined;
-          draw();
+          restyle();
+          outlineSelected();
         };
       },
       search(query, limit) {
@@ -292,6 +316,7 @@ export const disasterLayer: LayerDef = {
       destroy() {
         for (const stop of stops) stop();
         shapes.destroy();
+        selection.destroy();
         globe.scene.primitives.remove(badges);
       },
     };
