@@ -6,6 +6,7 @@ import { makeAirQualitySource } from './airquality.ts';
 import { makeAuroraSource } from './aurora.ts';
 import { makeBikeSystemSource } from './bike-systems.ts';
 import { makeBuoySource } from './buoys.ts';
+import { makeCameraSource } from './cameras.ts';
 import { makeDisasterSource } from './disasters.ts';
 import { makeEarthquakeSource } from './earthquakes.ts';
 import { makeEventSource } from './events.ts';
@@ -60,6 +61,7 @@ export class Sources extends Context.Service<Sources, { readonly [F in FeedId]: 
         transitFeeds: makeTransitFeedSource(),
         bikeSystems: makeBikeSystemSource(),
         lightning: makeLightningSource(),
+        cameras: makeCameraSource(),
       });
     }),
   );

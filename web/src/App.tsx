@@ -7,6 +7,8 @@ import { defaultSettings, type LayerSettings, LayerPanel } from './components/La
 import { PanoramaOverlay, usePanorama } from './components/PanoramaOverlay.tsx';
 import { SearchDialog } from './components/SearchDialog.tsx';
 import { loadConfig } from './config.ts';
+import { flyToPlace } from './data/geocode.ts';
+import type { PlaceHit } from './data/places.ts';
 import type { Basemap, Pick } from './globe/globe.ts';
 import { useCatalog, useLayerStates, useNow, usePersistentState } from './hooks.ts';
 import { layerById, layers } from './layers/registry.ts';
@@ -133,7 +135,13 @@ export function App() {
     if (details?.position) {
       world.follow(details.position);
       setFollowing(true);
-    }
+    } else if (details?.extent) world.globe.flyToBounds(details.extent);
+  };
+
+  const goToPlace = (place: PlaceHit) => {
+    if (!world) return;
+    select(undefined);
+    flyToPlace(world.globe, place);
   };
 
   // Credit the sources of what's drawing now; map imagery credits itself (the `credits` element).
@@ -223,7 +231,13 @@ export function App() {
           </div>
         )}
 
-        <SearchDialog world={world} open={searchOpen} onOpenChange={setSearchOpen} onSelect={goTo} />
+        <SearchDialog
+          world={world}
+          open={searchOpen}
+          onOpenChange={setSearchOpen}
+          onSelect={goTo}
+          onPlace={goToPlace}
+        />
       </div>
     </TooltipProvider>
   );

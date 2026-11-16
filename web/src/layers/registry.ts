@@ -6,6 +6,7 @@ import { auroraLayer } from './aurora.ts';
 import { bikeLayer } from './bikes.ts';
 import { buildingsLayer } from './buildings.ts';
 import { buoyLayer } from './buoys.ts';
+import { cameraLayer } from './cameras.ts';
 import { disasterLayer } from './disasters.ts';
 import { earthquakeLayer } from './earthquakes.ts';
 import { eventLayer } from './events.ts';
@@ -22,6 +23,8 @@ import {
 import { lightningLayer } from './lightning.ts';
 import { metarLayer } from './metars.ts';
 import { perimeterLayer } from './perimeters.ts';
+import { photoLayer } from './photos.ts';
+import { placeLayer } from './places.ts';
 import { poiLayer } from './poi.ts';
 import { riverLayer } from './rivers.ts';
 import { roadsLayer } from './roads.ts';
@@ -31,6 +34,7 @@ import { transitLayer } from './transit.ts';
 import type { LayerDef } from './types.ts';
 import { volcanoLayer } from './volcanoes.ts';
 import { weatherAlertLayer } from './weatheralerts.ts';
+import { wildlifeLayer } from './wildlife.ts';
 
 /** Every layer, in panel order within each category. Adding a dataset ends here. */
 export const layers: ReadonlyArray<LayerDef> = [
@@ -56,9 +60,13 @@ export const layers: ReadonlyArray<LayerDef> = [
   airQualityLayer,
   seaTemperatureLayer,
   trueColorLayer,
+  cameraLayer,
   transitLayer,
   bikeLayer,
+  placeLayer,
   poiLayer,
+  photoLayer,
+  wildlifeLayer,
   streetLevelLayer,
   dayNightLayer,
   referenceLayer,

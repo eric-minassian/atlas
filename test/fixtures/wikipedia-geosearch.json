@@ -1,0 +1,57 @@
+{
+  "batchcomplete": true,
+  "query": {
+    "geosearch": [
+      {
+        "pageid": 17867,
+        "ns": 0,
+        "title": "London",
+        "lat": 51.507222222222225,
+        "lon": -0.1275,
+        "dist": 6527.6,
+        "primary": true,
+        "type": null
+      },
+      {
+        "pageid": 13658,
+        "ns": 0,
+        "title": "House of Lords",
+        "lat": 51.498805555555556,
+        "lon": -0.12486111111111112,
+        "dist": 5606.2,
+        "primary": true,
+        "type": null
+      },
+      {
+        "pageid": 13828,
+        "ns": 0,
+        "title": "House of Commons of the United Kingdom",
+        "lat": 51.49988888888889,
+        "lon": -0.12466666666666668,
+        "dist": 5707.6,
+        "primary": true,
+        "type": null
+      },
+      {
+        "pageid": 39923951,
+        "ns": 0,
+        "title": "MI6",
+        "lat": 51.48722222222222,
+        "lon": -0.12416666666666668,
+        "dist": 4471.9,
+        "primary": true,
+        "type": "landmark"
+      },
+      {
+        "pageid": 13964,
+        "ns": 0,
+        "title": "Parliament of the United Kingdom",
+        "lat": 51.49944444444444,
+        "lon": -0.12472222222222222,
+        "dist": 5665.2,
+        "primary": true,
+        "type": "landmark"
+      }
+    ]
+  }
+}

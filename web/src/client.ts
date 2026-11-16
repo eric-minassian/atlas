@@ -14,6 +14,8 @@ const client = HttpApiClient.make(Api, { baseUrl: window.location.origin });
 
 export type ApiClient = Effect.Success<typeof client>;
 
-/** Runs `f` with the client. */
-export const callApi = <A, E>(f: (api: ApiClient) => Effect.Effect<A, E>): Promise<A> =>
-  runtime.runPromise(Effect.flatMap(client, f));
+/** Runs `f` with the client; aborting `signal` cancels the request. */
+export const callApi = <A, E>(
+  f: (api: ApiClient) => Effect.Effect<A, E>,
+  options?: { readonly signal?: AbortSignal },
+): Promise<A> => runtime.runPromise(Effect.flatMap(client, f), options);

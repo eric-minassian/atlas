@@ -134,6 +134,17 @@ const gbfs: Readonly<Record<string, string>> = {
 export const recorded: Upstream = (call) => {
   const { url } = call;
   switch (url.host) {
+    case 'api.tfl.gov.uk':
+      return json(fixture('tfl-jamcams.json'));
+    case 'webcams.nyctmc.org':
+      return json(fixture('nyctmc-cameras.json'));
+    case 'cwwp2.dot.ca.gov':
+      // District 7 (Los Angeles) recorded; the other districts answer with no cameras.
+      return json(url.pathname.endsWith('cctvStatusD07.json') ? fixture('caltrans-d07.json') : '{"data":[]}');
+    case 'api.windy.com':
+      return json(fixture('windy-webcams.json'));
+    case 'api.inaturalist.org':
+      return json(fixture('inaturalist-observations.json'));
     case 'opendata.adsb.fi':
       return json(fixture('adsbfi.json'));
     case 'celestrak.org':
@@ -168,9 +179,11 @@ export const recorded: Upstream = (call) => {
         headers: { 'content-type': 'application/x-protobuf' },
       });
     case 'raw.githubusercontent.com':
-      return url.pathname === '/MobilityData/gbfs/master/systems.csv'
-        ? new Response(fixture('gbfs/systems.csv'))
-        : undefined;
+      if (url.pathname === '/MobilityData/gbfs/master/systems.csv')
+        return new Response(fixture('gbfs/systems.csv'));
+      if (url.pathname === '/AidanWelch/OpenTrafficCamMap/master/cameras/USA.json')
+        return json(fixture('opentrafficcammap-usa.json'));
+      return undefined;
     case 'noaa-goes19.s3.amazonaws.com':
       if (url.pathname === '/')
         return new Response(

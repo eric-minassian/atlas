@@ -61,7 +61,12 @@ export class World {
     this.config = config;
     this.globe = new Globe(container, config, creditContainer);
     this.available = layers.filter((def) => def.available?.(config) ?? true);
-    for (const def of this.available) this.handles.set(def.id, def.create(this.globe));
+    for (const def of this.available) {
+      const handle = def.create(this.globe);
+      this.handles.set(def.id, handle);
+      // Layers that load by area get their data after the view settles: recount when it lands.
+      if (handle.loaded) this.stops.push(handle.loaded.add(() => this.apply(this.globe.view, true, def.id)));
+    }
     const providers = new Map<ProviderId, StreetProvider>([['panoramax', panoramax]]);
     if (config.keys.mapillary) providers.set('mapillary', mapillary(config.keys.mapillary));
     this.street = new PanoramaViewer(this.globe, providers);

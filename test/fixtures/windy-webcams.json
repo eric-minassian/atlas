@@ -1,0 +1,170 @@
+{
+  "total": 849,
+  "webcams": [
+    {
+      "title": "London: Trafalgar Square",
+      "viewCount": 554620,
+      "webcamId": 1420893641,
+      "status": "active",
+      "lastUpdatedOn": "2026-11-16T00:53:05.000Z",
+      "images": {
+        "current": {
+          "icon": "https://imgproxy.windy.com/_/icon/plain/current/1420893641/original.jpg?v=2",
+          "thumbnail": "https://imgproxy.windy.com/_/thumbnail/plain/current/1420893641/original.jpg?v=2",
+          "preview": "https://imgproxy.windy.com/_/preview/plain/current/1420893641/original.jpg?v=2"
+        },
+        "sizes": {
+          "icon": {
+            "width": 48,
+            "height": 48
+          },
+          "thumbnail": {
+            "width": 200,
+            "height": 112
+          },
+          "preview": {
+            "width": 352,
+            "height": 224
+          }
+        },
+        "daylight": {
+          "icon": "https://imgproxy.windy.com/_/icon/plain/daylight/1420893641/original.jpg?v=2",
+          "thumbnail": "https://imgproxy.windy.com/_/thumbnail/plain/daylight/1420893641/original.jpg?v=2",
+          "preview": "https://imgproxy.windy.com/_/preview/plain/daylight/1420893641/original.jpg?v=2"
+        }
+      },
+      "location": {
+        "city": "London",
+        "region": "England",
+        "region_code": "GB.ENG",
+        "country": "United Kingdom",
+        "country_code": "GB",
+        "continent": "Europe",
+        "continent_code": "EU",
+        "latitude": 51.5074,
+        "longitude": -0.12765
+      },
+      "player": {
+        "day": "https://webcams.windy.com/webcams/public/embed/player/1420893641/day",
+        "month": "https://webcams.windy.com/webcams/public/embed/player/1420893641/month",
+        "year": "https://webcams.windy.com/webcams/public/embed/player/1420893641/year",
+        "lifetime": "https://webcams.windy.com/webcams/public/embed/player/1420893641/lifetime"
+      },
+      "urls": {
+        "detail": "https://windy.com/webcams/1420893641",
+        "edit": "https://webcams-admin.windy.com/webcams/1420893641",
+        "provider": "http://www.londontraffic.org/"
+      }
+    },
+    {
+      "title": "London › South: Parliament Square - Westminster Hall - St Margaret's Church - Westminster Abbey",
+      "viewCount": 404103,
+      "webcamId": 1229966910,
+      "status": "active",
+      "lastUpdatedOn": "2026-11-16T00:42:05.000Z",
+      "images": {
+        "current": {
+          "icon": "https://imgproxy.windy.com/_/icon/plain/current/1229966910/original.jpg?v=2",
+          "thumbnail": "https://imgproxy.windy.com/_/thumbnail/plain/current/1229966910/original.jpg?v=2",
+          "preview": "https://imgproxy.windy.com/_/preview/plain/current/1229966910/original.jpg?v=2"
+        },
+        "sizes": {
+          "icon": {
+            "width": 48,
+            "height": 48
+          },
+          "thumbnail": {
+            "width": 200,
+            "height": 112
+          },
+          "preview": {
+            "width": 352,
+            "height": 224
+          }
+        },
+        "daylight": {
+          "icon": "https://imgproxy.windy.com/_/icon/plain/daylight/1229966910/original.jpg?v=2",
+          "thumbnail": "https://imgproxy.windy.com/_/thumbnail/plain/daylight/1229966910/original.jpg?v=2",
+          "preview": "https://imgproxy.windy.com/_/preview/plain/daylight/1229966910/original.jpg?v=2"
+        }
+      },
+      "location": {
+        "city": "London",
+        "region": "England",
+        "region_code": "GB.ENG",
+        "country": "United Kingdom",
+        "country_code": "GB",
+        "continent": "Europe",
+        "continent_code": "EU",
+        "latitude": 51.5011,
+        "longitude": -0.12628
+      },
+      "player": {
+        "day": "https://webcams.windy.com/webcams/public/embed/player/1229966910/day",
+        "month": "https://webcams.windy.com/webcams/public/embed/player/1229966910/month",
+        "year": "https://webcams.windy.com/webcams/public/embed/player/1229966910/year",
+        "lifetime": "https://webcams.windy.com/webcams/public/embed/player/1229966910/lifetime"
+      },
+      "urls": {
+        "detail": "https://windy.com/webcams/1229966910",
+        "edit": "https://webcams-admin.windy.com/webcams/1229966910",
+        "provider": "http://www.londontraffic.org/"
+      }
+    },
+    {
+      "title": "London: Piccadilly Circus",
+      "viewCount": 341162,
+      "webcamId": 1508413562,
+      "status": "active",
+      "lastUpdatedOn": "2026-11-16T00:59:42.000Z",
+      "images": {
+        "current": {
+          "icon": "https://imgproxy.windy.com/_/icon/plain/current/1508413562/original.jpg?v=2",
+          "thumbnail": "https://imgproxy.windy.com/_/thumbnail/plain/current/1508413562/original.jpg?v=2",
+          "preview": "https://imgproxy.windy.com/_/preview/plain/current/1508413562/original.jpg?v=2"
+        },
+        "sizes": {
+          "icon": {
+            "width": 48,
+            "height": 48
+          },
+          "thumbnail": {
+            "width": 200,
+            "height": 112
+          },
+          "preview": {
+            "width": 352,
+            "height": 224
+          }
+        },
+        "daylight": {
+          "icon": "https://imgproxy.windy.com/_/icon/plain/daylight/1508413562/original.jpg?v=2",
+          "thumbnail": "https://imgproxy.windy.com/_/thumbnail/plain/daylight/1508413562/original.jpg?v=2",
+          "preview": "https://imgproxy.windy.com/_/preview/plain/daylight/1508413562/original.jpg?v=2"
+        }
+      },
+      "location": {
+        "city": "London",
+        "region": "England",
+        "region_code": "GB.ENG",
+        "country": "United Kingdom",
+        "country_code": "GB",
+        "continent": "Europe",
+        "continent_code": "EU",
+        "latitude": 51.5096,
+        "longitude": -0.13484
+      },
+      "player": {
+        "day": "https://webcams.windy.com/webcams/public/embed/player/1508413562/day",
+        "month": "https://webcams.windy.com/webcams/public/embed/player/1508413562/month",
+        "year": "https://webcams.windy.com/webcams/public/embed/player/1508413562/year",
+        "lifetime": "https://webcams.windy.com/webcams/public/embed/player/1508413562/lifetime"
+      },
+      "urls": {
+        "detail": "https://windy.com/webcams/1508413562",
+        "edit": "https://webcams-admin.windy.com/webcams/1508413562",
+        "provider": "http://www.londontraffic.org/"
+      }
+    }
+  ]
+}

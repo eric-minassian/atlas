@@ -7,6 +7,7 @@ import { AircraftNearbyLookup } from './aircraft.ts';
 import { AirportIndex } from './airports.ts';
 import { Api } from './api.ts';
 import { BikeLookup } from './bikes.ts';
+import { CameraRelay } from './cameras.ts';
 import { feeds } from './catalog.ts';
 import { type FeedId, FeedNotReady, feedIds } from './domain.ts';
 import { FeedStore } from './feeds.ts';
@@ -14,6 +15,8 @@ import { HereLookup } from './here.ts';
 import { Sources } from './ingest/index.ts';
 import { Tiles } from './tiles.ts';
 import { TransitLookup } from './transit.ts';
+import { WebcamLookup } from './webcams.ts';
+import { WildlifeLookup } from './wildlife.ts';
 
 /** Sets `Cache-Control` on the response the current handler produces. */
 const cacheFor = (value: string) =>
@@ -120,6 +123,9 @@ const LiveHandlers = HttpApiBuilder.group(
     const airports = yield* AirportIndex;
     const transit = yield* TransitLookup;
     const bikes = yield* BikeLookup;
+    const webcams = yield* WebcamLookup;
+    const wildlife = yield* WildlifeLookup;
+    const cameras = yield* CameraRelay;
     return handlers
       .handle('aircraft', ({ query }) =>
         Effect.gen(function* () {
@@ -149,6 +155,29 @@ const LiveHandlers = HttpApiBuilder.group(
           yield* cacheFor('public, max-age=60, stale-while-revalidate=120');
           return stations;
         }),
+      )
+      .handle('webcams', ({ params }) =>
+        Effect.gen(function* () {
+          const area = yield* webcams.area(params.z, params.x, params.y);
+          // Short: Windy's image URLs expire 10 minutes after Windy hands them out.
+          yield* cacheFor('public, max-age=60, stale-while-revalidate=60');
+          return area;
+        }),
+      )
+      .handle('wildlife', ({ params }) =>
+        Effect.gen(function* () {
+          const area = yield* wildlife.area(params.z, params.x, params.y);
+          yield* cacheFor('public, max-age=900, stale-while-revalidate=900');
+          return area;
+        }),
+      )
+      .handle('cameraImage', ({ params }) =>
+        Effect.map(cameras.frame(params.id), (frame) =>
+          HttpServerResponse.uint8Array(frame.bytes, {
+            contentType: frame.contentType,
+            headers: { 'cache-control': 'public, max-age=30' },
+          }),
+        ),
       );
   }),
 );
@@ -188,7 +217,8 @@ const FeedsHandlers = HttpApiBuilder.group(
       )
       .handle('transitFeeds', serveFeed(store, 'transitFeeds'))
       .handle('bikeSystems', serveFeed(store, 'bikeSystems'))
-      .handle('lightning', serveFeed(store, 'lightning'));
+      .handle('lightning', serveFeed(store, 'lightning'))
+      .handle('cameras', serveFeed(store, 'cameras'));
   }),
 );
 
@@ -199,6 +229,15 @@ const FeedsHandlers = HttpApiBuilder.group(
  */
 export const HttpLive = HttpApiBuilder.layer(Api, { openapiPath: '/api/openapi.json' }).pipe(
   Layer.provide([SystemHandlers, FeedsHandlers, LiveHandlers, TilesHandlers]),
-  Layer.provide([AirportIndex.layer, TransitLookup.layer, BikeLookup.layer]),
-  Layer.provide([FeedStore.layer, Sources.layer, HereLookup.layer, Tiles.layer, AircraftNearbyLookup.layer]),
+  // Lookups that read published snapshots (airports, transit and bike catalogs, camera lists).
+  Layer.provide([AirportIndex.layer, TransitLookup.layer, BikeLookup.layer, CameraRelay.layer]),
+  Layer.provide([
+    FeedStore.layer,
+    Sources.layer,
+    HereLookup.layer,
+    Tiles.layer,
+    AircraftNearbyLookup.layer,
+    WebcamLookup.layer,
+    WildlifeLookup.layer,
+  ]),
 );

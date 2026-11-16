@@ -28,6 +28,7 @@ const fetchers: Fetchers = {
   transitFeeds: (api) => api.feeds.transitFeeds(),
   bikeSystems: (api) => api.feeds.bikeSystems(),
   lightning: (api) => api.feeds.lightning(),
+  cameras: (api) => api.feeds.cameras(),
 };
 
 export interface FeedView {

@@ -59,7 +59,7 @@ test('search opens from the keyboard', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByTestId('globe').locator('canvas')).toBeVisible();
   await page.keyboard.press('ControlOrMeta+k');
-  await expect(page.getByPlaceholder('Callsign, satellite name or NORAD id, place…')).toBeFocused();
+  await expect(page.getByPlaceholder('Place, address, callsign, satellite…')).toBeFocused();
 });
 
 test('the API describes every feed', async ({ request }) => {
@@ -87,5 +87,6 @@ test('the API describes every feed', async ({ request }) => {
     'transitFeeds',
     'bikeSystems',
     'lightning',
+    'cameras',
   ]);
 });
