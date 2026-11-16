@@ -8,7 +8,7 @@ import {
   NearFarScalar,
 } from 'cesium';
 import { contains } from '../../../src/area.ts';
-import { feeds } from '../../../src/catalog.ts';
+import { feeds, type Source } from '../../../src/catalog.ts';
 import type { ShipData } from '../../../src/domain.ts';
 import { feedPoller, type Snapshot } from '../data/feeds.ts';
 import type { PickId } from '../globe/globe.ts';
@@ -49,19 +49,37 @@ const stillIcon = `data:image/svg+xml,${encodeURIComponent(
 /** Larger vessels draw larger, within limits that keep small craft visible and tankers from covering a port. */
 const scaleOf = (length: number) => (length > 0 ? 0.45 + Math.min(1, length / 300) * 0.5 : 0.55);
 
+/**
+ * Without an aisstream.io key the server reads only Fintraffic's Baltic
+ * network: the panel says so. Set from the deployment's config when the layer
+ * is created, before the panel first reads it.
+ */
+let worldwide = true;
+const balticOnly: Source = {
+  name: 'Fintraffic',
+  url: 'https://www.digitraffic.fi/en/marine-traffic/',
+  license: 'Fintraffic / digitraffic.fi, CC BY 4.0',
+};
+
 export const shipLayer: LayerDef = {
   id: 'ships',
   title: 'Ships',
   category: 'sea',
-  description:
-    'AIS positions broadcast by vessels, carried forward along their course between reports. Worldwide where aisstream.io’s volunteer receivers hear them, and across the Baltic from Fintraffic.',
-  source: feeds.ships.source,
+  get description() {
+    return worldwide
+      ? 'AIS positions broadcast by vessels, carried forward along their course between reports. Worldwide where aisstream.io’s volunteer receivers hear them, and across the Baltic from Fintraffic.'
+      : 'AIS positions broadcast by vessels across the Baltic, from Fintraffic, carried forward along their course between reports.';
+  },
+  get source() {
+    return worldwide ? feeds.ships.source : balticOnly;
+  },
   feed: 'ships',
   defaultVisible: true,
   // Beyond this, tens of thousands of icons are a smear along the coasts.
   range: { max: 8_000_000 },
   filters: categories,
   create(globe): LayerHandle {
+    worldwide = globe.config.sources.aisstream;
     const billboards = globe.scene.primitives.add(new BillboardCollection({ scene: globe.scene }));
     let data: ShipData | undefined;
     let items: Billboard[] = [];

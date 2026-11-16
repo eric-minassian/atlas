@@ -142,7 +142,9 @@ export const transitLayer: LayerDef = {
               alignedAxis: Cartesian3.UNIT_Z,
               id: { layer: 'transit', key: vehicle.key } satisfies PickId,
             });
-          billboard.image = directional ? headingIcon : dotIcon;
+          // Setting an image reloads it, even the same one.
+          if (existing && (existing.vehicle.bearing !== null) !== directional)
+            billboard.image = directional ? headingIcon : dotIcon;
           billboard.rotation = directional ? -CesiumMath.toRadians(vehicle.bearing ?? 0) : 0;
           billboard.position = positionOf(vehicle, now);
           next.set(vehicle.key, { vehicle, billboard });
