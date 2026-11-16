@@ -1,4 +1,4 @@
-import { Color } from 'cesium';
+import { Color, DistanceDisplayCondition } from 'cesium';
 import { feeds, webcamSource } from '../../../src/catalog.ts';
 import type { CameraData, Webcam, WebcamArea } from '../../../src/domain.ts';
 import { callApi } from '../client.ts';
@@ -34,6 +34,12 @@ interface TrafficCamera {
 const trafficKey = 't:';
 const webcamKey = 'w:';
 
+/**
+ * How far from the camera an icon still shows. A tilted view reaches the
+ * horizon, and without this every highway camera out there lines up along it.
+ */
+const NEARBY = new DistanceDisplayCondition(0, 15_000);
+
 export const cameraLayer: LayerDef = {
   id: 'cameras',
   title: 'Live cameras',
@@ -54,6 +60,7 @@ export const cameraLayer: LayerDef = {
       color: trafficColor,
       image: cameraIcon,
       size: 18,
+      reach: NEARBY,
     }));
     const webcams = new GroundPins<Webcam>(globe, 'cameras', (w) => ({
       lon: w.lon,
@@ -61,6 +68,7 @@ export const cameraLayer: LayerDef = {
       color: webcamColor,
       image: cameraIcon,
       size: 18,
+      reach: NEARBY,
     }));
     const loaded = new Listeners<void>();
     traffic.changed.add(() => loaded.emit());
