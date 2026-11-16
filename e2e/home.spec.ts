@@ -14,9 +14,10 @@ test('the globe renders with the layer panel and live freshness', async ({ page 
   await expect(page.getByRole('heading', { name: 'Atlas' })).toBeVisible();
   await expect(page.getByTestId('globe').locator('canvas')).toBeVisible();
   const layers = page.getByRole('complementary', { name: 'Layers' });
+  // By switch: a layer's name can also be another layer's filter (Earthquakes in Disaster alerts).
   await Promise.all(
     ['Aircraft', 'Satellites', 'Earthquakes', 'Clouds', 'Weather radar'].map((name) =>
-      expect(layers.getByText(name, { exact: true })).toBeVisible(),
+      expect(layers.getByRole('switch', { name, exact: true })).toBeVisible(),
     ),
   );
   expect(errors).toEqual([]);
