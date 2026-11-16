@@ -67,8 +67,8 @@ export class FeedsApi extends HttpApiGroup.make('feeds')
     HttpApiEndpoint.get('radar', '/radar', { success: RadarSnapshot, error: FeedNotReady }),
     HttpApiEndpoint.get('ships', '/ships', { success: ShipSnapshot, error: FeedNotReady }),
     /**
-     * Large and medium airports worldwide, without runways: the rest of the
-     * snapshot comes by tile (`/api/live/airports`), for the area in view.
+     * Large and medium airports worldwide, without runways or links: the rest
+     * of the snapshot comes by tile (`/api/live/airports`), for the area in view.
      */
     HttpApiEndpoint.get('airports', '/airports', { success: AirportSnapshot, error: FeedNotReady }),
     HttpApiEndpoint.get('transitFeeds', '/transit-feeds', {

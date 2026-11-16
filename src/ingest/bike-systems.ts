@@ -2,7 +2,7 @@ import { Clock, Duration, Effect, Option, Schema } from 'effect';
 import { feeds } from '../catalog.ts';
 import type { BikeSystemData } from '../domain.ts';
 import { makeHostGate } from '../gate.ts';
-import { Discovery, feedUrls, StationInformation } from '../gbfs.ts';
+import { Discovery, feedUrls, hasBicycles, isPhysical, StationInformation, VehicleTypes } from '../gbfs.ts';
 import { readCsv } from './csv.ts';
 import { type Columns, decodeJson, get, IngestError, okText, round, type Source, updated } from './source.ts';
 
@@ -64,13 +64,13 @@ export interface Located {
   readonly vehicleTypes: string;
 }
 
-/** The extent of a system's stations, ignoring ones at 0,0 (a common placeholder). */
+/** The extent of a system's docks, ignoring ones at 0,0 (a common placeholder). */
 export const boundsOf = (information: StationInformation): Located['bounds'] => {
   let west = Number.POSITIVE_INFINITY;
   let south = Number.POSITIVE_INFINITY;
   let east = Number.NEGATIVE_INFINITY;
   let north = Number.NEGATIVE_INFINITY;
-  for (const { lat, lon } of information.data.stations) {
+  for (const { lat, lon } of information.data.stations.filter(isPhysical)) {
     if ((lat === 0 && lon === 0) || Math.abs(lat) > 90 || Math.abs(lon) > 180) continue;
     west = Math.min(west, lon);
     south = Math.min(south, lat);
@@ -203,22 +203,27 @@ export const makeBikeSystemSource = (): Source<'bikeSystems'> => {
     const urls = feedUrls(yield* fetchJson(system.discovery, Discovery));
     const information = urls.get('station_information') ?? '';
     const status = urls.get('station_status') ?? '';
-    // Free-floating fleets have no stations to show.
-    if (!information || !status)
-      return {
-        stations: 0,
-        bounds: undefined,
-        information: '',
-        status: '',
-        vehicleTypes: '',
-      } satisfies Located;
+    const vehicleTypes = urls.get('vehicle_types') ?? '';
+    const none = {
+      stations: 0,
+      bounds: undefined,
+      information: '',
+      status: '',
+      vehicleTypes: '',
+    } satisfies Located;
+    if (!information || !status) return none;
+    // GBFS also lists car sharing and scooter fleets.
+    if (vehicleTypes && !hasBicycles(yield* fetchJson(vehicleTypes, VehicleTypes))) return none;
     const stations = yield* fetchJson(information, StationInformation);
+    // Free-floating fleets publish their parking areas as virtual stations: thousands of them, no docks.
+    const docks = stations.data.stations.filter(isPhysical).length;
+    if (docks === 0) return none;
     return {
-      stations: stations.data.stations.length,
+      stations: docks,
       bounds: boundsOf(stations),
       information,
       status,
-      vehicleTypes: urls.get('vehicle_types') ?? '',
+      vehicleTypes,
     } satisfies Located;
   });
 

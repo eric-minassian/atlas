@@ -92,6 +92,12 @@ export const feeds: { readonly [F in FeedId]: FeedInfo } = {
   },
 };
 
+/**
+ * The Web Mercator zoom each area lookup is served at (`/api/live/<source>/:z/:x/:y`):
+ * about 150 km tiles for airports, 40 km for transit, 20 km for bike-share stations.
+ */
+export const areaZooms = { airports: 8, transit: 10, bikes: 11 } as const;
+
 /** Where live transit vehicles come from; each feed's provider is credited with the vehicles. */
 export const transitSource: Source = {
   name: 'GTFS-realtime feeds via the Mobility Database',

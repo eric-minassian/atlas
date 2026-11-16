@@ -53,6 +53,8 @@ export const StationInformation = Schema.Struct({
         lat: Coordinate,
         lon: Coordinate,
         capacity: Count,
+        /** A marked spot rather than a dock (free-floating fleets' parking areas); from 2.1. */
+        is_virtual_station: Schema.optionalKey(Schema.Boolean),
       }),
     ),
   }),
@@ -113,6 +115,28 @@ export const nameOf = (name: typeof Name.Type | undefined): string => {
 export const flag = (value: boolean | number | undefined, fallback: boolean): boolean =>
   value === undefined ? fallback : value === true || value === 1;
 
+type Station = StationInformation['data']['stations'][number];
+
+/** A dock someone can walk up to, not a free-floating fleet's parking area. */
+export const isPhysical = (station: Station): boolean => station.is_virtual_station !== true;
+
+const isBicycle = (formFactor: string | undefined) =>
+  formFactor === undefined || formFactor === 'bicycle' || formFactor === 'cargo_bicycle';
+
+/** Whether a system has bicycles at all (some GBFS systems are car share or scooters only). */
+export const hasBicycles = (types: VehicleTypes): boolean =>
+  types.data.vehicle_types.length === 0 || types.data.vehicle_types.some((t) => isBicycle(t.form_factor));
+
+/** Bicycle types (mixed systems also list cars or scooters), as ids. */
+export const bicycleTypes = (types: VehicleTypes | undefined): ReadonlySet<string> | undefined =>
+  types && types.data.vehicle_types.length > 0
+    ? new Set(
+        types.data.vehicle_types
+          .filter((t) => isBicycle(t.form_factor))
+          .map((t) => String(t.vehicle_type_id)),
+      )
+    : undefined;
+
 /** Electric bicycles (pedal-assisted or not) among a system's vehicle types. */
 export const electricBikeTypes = (types: VehicleTypes | undefined): ReadonlySet<string> =>
   new Set(
@@ -120,7 +144,7 @@ export const electricBikeTypes = (types: VehicleTypes | undefined): ReadonlySet<
       .filter(
         (t) =>
           (t.propulsion_type === 'electric_assist' || t.propulsion_type === 'electric') &&
-          (t.form_factor === undefined || t.form_factor === 'bicycle' || t.form_factor === 'cargo_bicycle'),
+          isBicycle(t.form_factor),
       )
       .map((t) => String(t.vehicle_type_id)),
   );

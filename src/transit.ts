@@ -2,6 +2,7 @@ import { Cache, Clock, Context, Duration, Effect, Exit, Layer, Option } from 'ef
 import { HttpClient } from 'effect/http';
 import GtfsRealtimeBindings from 'gtfs-realtime-bindings';
 import { contains, isTile, overlaps, tileBounds } from './area.ts';
+import { areaZooms } from './catalog.ts';
 import { derivedFrom } from './derived.ts';
 import { FeedNotReady, TileOutOfRange, type TransitMode, type TransitVehicles } from './domain.ts';
 import { FeedStore } from './feeds.ts';
@@ -16,7 +17,7 @@ import { readSchedule, type Route } from './schedules.ts';
  * one download serves every tile a feed covers (a national feed covers
  * hundreds).
  */
-export const TRANSIT_ZOOM = 10;
+export const TRANSIT_ZOOM = areaZooms.transit;
 /** How long a feed's download is reused; producers update every 10–30 s. */
 const FRESH = Duration.seconds(15);
 /** A feed that doesn't answer in time is reported as such; the others still come back. */

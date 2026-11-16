@@ -3,10 +3,10 @@ import { Platform } from '@ericminassian/platform';
 import { Context, Effect, Layer } from 'effect';
 import { TestClock } from 'effect/testing';
 import { tileAt } from '../src/area.ts';
-import { BIKES_ZOOM, BikeLookup, ebikesAt, reportedAt } from '../src/bikes.ts';
+import { BIKES_ZOOM, BikeLookup, bikesAt, ebikesAt, reportedAt } from '../src/bikes.ts';
 import { FeedStore } from '../src/feeds.ts';
 import { makeBikeSystemSource } from '../src/ingest/bike-systems.ts';
-import { fakeHttp, recorded, type Upstream } from './support.ts';
+import { fakeHttp, fixture, recorded, type Upstream } from './support.ts';
 
 /** The lookup over a store holding the systems the walk located from the fixtures. */
 const lookup = (upstream: Upstream = recorded) => {
@@ -129,6 +129,37 @@ describe('bike-share stations', () => {
       5,
     );
     assert.isNull(ebikesAt({ station_id: 'a', num_bikes_available: 4 }, new Set()));
+  });
+
+  it('counts only bicycles in mixed fleets', () => {
+    const status = {
+      station_id: 'a',
+      num_bikes_available: 9,
+      vehicle_types_available: [
+        { vehicle_type_id: 'bike', count: 4 },
+        { vehicle_type_id: 'car', count: 5 },
+      ],
+    };
+    assert.strictEqual(bikesAt(status, new Set(['bike'])), 4);
+    assert.strictEqual(bikesAt(status, undefined), 9);
+  });
+
+  it.effect('leaves out parking areas and city-wide zones', () => {
+    const velibStatus = JSON.parse(fixture('gbfs/velib-station_status.json')) as {
+      data: { stations: Array<{ station_id: number; num_docks_available: number }> };
+    };
+    const zone = velibStatus.data.stations.find((s) => s.station_id === 37874517);
+    if (zone) zone.num_docks_available = 999_999;
+    const { layer } = lookup((call) =>
+      call.url.pathname.endsWith('/Velib_Metropole/station_status.json')
+        ? Response.json(velibStatus)
+        : recorded(call),
+    );
+    return Effect.gen(function* () {
+      const { data } = yield* (yield* BikeLookup).tile(BIKES_ZOOM, paris.x, paris.y);
+      assert.notInclude([...data.name], 'Saint-Sulpice');
+      assert.include([...data.name], 'Toudouze - Clauzel');
+    }).pipe(Effect.provide(layer));
   });
 
   it('reads report times in either GBFS form', () => {

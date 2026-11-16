@@ -1,5 +1,6 @@
 import { Context, Effect, Layer } from 'effect';
 import { isTile, tileAt } from './area.ts';
+import { areaZooms } from './catalog.ts';
 import { derivedFrom } from './derived.ts';
 import { type AirportData, type AirportsInTile, FeedNotReady, TileOutOfRange } from './domain.ts';
 import { FeedStore } from './feeds.ts';
@@ -11,12 +12,14 @@ import type { Columns } from './ingest/source.ts';
  * that's on by default. So it's served in two cuts, both made from the decoded
  * snapshot once per version:
  *
- * - `/api/feeds/airports`: the ~5,300 large and medium airports worldwide,
- *   without runways (~150 KB compressed), drawn from regional zoom;
+ * - `/api/feeds/airports`: the ~5,300 large and medium airports worldwide
+ *   with what drawing and search need (names, codes, places), no runways or
+ *   links (~190 KB compressed), drawn from regional zoom;
  * - `/api/live/airports/8/x/y`: everything in one zoom-8 tile (~150 km),
- *   runways included, loaded at city zoom and when an airport is selected.
+ *   runways and links included, loaded at city zoom and when an airport is
+ *   selected.
  */
-export const AIRPORT_ZOOM = 8;
+export const AIRPORT_ZOOM = areaZooms.airports;
 
 const emptyRunways = (): Columns<AirportData['runways']> => ({
   airport: [],
@@ -111,7 +114,10 @@ export class AirportIndex extends Context.Service<
           if (list) list.push(i);
           else byTile.set(key, [i]);
         }
-        const cut = sliceAirports(data, major, false);
+        const sliced = sliceAirports(data, major, false);
+        // Links, like runways, are only needed to describe one airport: they come with its tile.
+        const blank = sliced.airports.ident.map(() => '');
+        const cut = { ...sliced, airports: { ...sliced.airports, website: blank, wikipedia: blank } };
         const majorBody = JSON.stringify({
           feed: 'airports',
           version: snapshot.version,

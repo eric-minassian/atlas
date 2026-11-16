@@ -12,7 +12,7 @@ import { makeRadarSource } from '../src/ingest/radar.ts';
 import { groupOf, makeSatelliteSource } from '../src/ingest/satellites.ts';
 import { IngestError, type IngestResult, type Source } from '../src/ingest/source.ts';
 import { parseTransitFeeds } from '../src/ingest/transit-feeds.ts';
-import { fakeHttp, fixture, type Upstream } from './support.ts';
+import { fakeHttp, fixture, recorded, type Upstream } from './support.ts';
 
 /** Runs a source's read against `upstream`, with optional secrets. */
 const read = <F extends FeedId>(
@@ -285,6 +285,29 @@ describe('bike-share systems (GBFS)', () => {
         const i = data.id.indexOf(id);
         assert.deepStrictEqual([data.checkedAt[i], data.stations[i], data.west[i]], [1_794_792_000, 0, null]);
       }
+    }),
+  );
+
+  it.effect('leaves out car sharing and free-floating fleets', () =>
+    Effect.gen(function* () {
+      const velibInformation = JSON.parse(fixture('gbfs/velib-station_information.json')) as {
+        data: { stations: Array<Record<string, unknown>> };
+      };
+      for (const station of velibInformation.data.stations) station.is_virtual_station = true;
+      const { result } = yield* read(makeBikeSystemSource(), (call) => {
+        // Dott with stations but a fleet of cars; Vélib's stations as if they were parking areas.
+        if (call.url.pathname.endsWith('/abu-dhabi/vehicle_types.json'))
+          return Response.json({ data: { vehicle_types: [{ vehicle_type_id: 'car', form_factor: 'car' }] } });
+        if (call.url.pathname.endsWith('/abu-dhabi/station_information.json'))
+          return new Response(fixture('gbfs/nyc-station_information.json'));
+        if (call.url.pathname.endsWith('/Velib_Metropole/station_information.json'))
+          return Response.json(velibInformation);
+        return recorded(call);
+      });
+      const { data } = updatedData(result);
+      for (const id of ['dott-abu-dhabi', 'Paris'])
+        assert.strictEqual(data.stations[data.id.indexOf(id)], 0, id);
+      assert.strictEqual(data.stations[data.id.indexOf('lyft_nyc')], 8);
     }),
   );
 

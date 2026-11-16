@@ -1,11 +1,21 @@
 import { Cache, Clock, Context, Duration, Effect, Layer, Option, type Schema } from 'effect';
 import { HttpClient } from 'effect/http';
 import { contains, isTile, overlaps, tileBounds } from './area.ts';
+import { areaZooms } from './catalog.ts';
 import { derivedFrom } from './derived.ts';
 import { type BikeStations, FeedNotReady, TileOutOfRange } from './domain.ts';
 import { FeedStore } from './feeds.ts';
 import { makeHostGate } from './gate.ts';
-import { electricBikeTypes, flag, nameOf, StationInformation, StationStatus, VehicleTypes } from './gbfs.ts';
+import {
+  bicycleTypes,
+  electricBikeTypes,
+  flag,
+  isPhysical,
+  nameOf,
+  StationInformation,
+  StationStatus,
+  VehicleTypes,
+} from './gbfs.ts';
 import { type Columns, decodeJson, get, IngestError, okText, round } from './ingest/source.ts';
 
 /**
@@ -15,10 +25,12 @@ import { type Columns, decodeJson, get, IngestError, okText, round } from './ing
  * minute (systems publish every 10–60 s), station locations and vehicle
  * types for an hour.
  */
-export const BIKES_ZOOM = 11;
+export const BIKES_ZOOM = areaZooms.bikes;
 const STATUS_FRESH = Duration.seconds(60);
 const INFORMATION_FRESH = Duration.hours(1);
 const SYSTEM_TIMEOUT = Duration.seconds(10);
+/** Lime publishes a whole city as one "station" with 999,999 docks. */
+const UNLIMITED_DOCKS = 10_000;
 
 export class BikeLookup extends Context.Service<
   BikeLookup,
@@ -121,19 +133,22 @@ export class BikeLookup extends Context.Service<
           if (ok) {
             const [info, now, vehicleTypes] = answer.success;
             const electric = electricBikeTypes(vehicleTypes);
+            const bicycles = bicycleTypes(vehicleTypes);
             const statusById = new Map(now.data.stations.map((s) => [String(s.station_id), s]));
             for (const station of info.data.stations) {
-              if (!contains(bounds, station.lon, station.lat)) continue;
+              if (!isPhysical(station) || !contains(bounds, station.lon, station.lat)) continue;
               const id = String(station.station_id);
               const s = statusById.get(id);
               // A station without status, or not on the street, isn't in service.
               if (!s || !flag(s.is_installed, true)) continue;
+              // An "unlimited" dock count is a zone, not a station.
+              if ((s.num_docks_available ?? 0) >= UNLIMITED_DOCKS) continue;
               out.system.push(listed.length);
               out.id.push(id);
               out.name.push(nameOf(station.name));
               out.lon.push(round(station.lon, 5));
               out.lat.push(round(station.lat, 5));
-              out.bikes.push(Math.max(0, Math.round(s.num_bikes_available ?? s.num_vehicles_available ?? 0)));
+              out.bikes.push(bikesAt(s, bicycles));
               out.ebikes.push(ebikesAt(s, electric));
               out.docks.push(
                 s.num_docks_available === undefined ? null : Math.max(0, Math.round(s.num_docks_available)),
@@ -161,6 +176,15 @@ export class BikeLookup extends Context.Service<
 }
 
 type Status = StationStatus['data']['stations'][number];
+
+/** Bicycles ready to rent: by vehicle type where the system lists types (mixed fleets count cars and scooters too). */
+export const bikesAt = (s: Status, bicycles: ReadonlySet<string> | undefined): number => {
+  if (bicycles && s.vehicle_types_available)
+    return s.vehicle_types_available
+      .filter((t) => bicycles.has(String(t.vehicle_type_id)))
+      .reduce((sum, t) => sum + Math.max(0, Math.round(t.count)), 0);
+  return Math.max(0, Math.round(s.num_bikes_available ?? s.num_vehicles_available ?? 0));
+};
 
 /** E-bikes at a station, from whichever way the system reports them; null when it doesn't. */
 export const ebikesAt = (s: Status, electric: ReadonlySet<string>): number | null => {

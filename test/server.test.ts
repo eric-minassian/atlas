@@ -9,6 +9,7 @@ import {
 import { Context, Effect, Layer, Schema } from 'effect';
 import { FetchHttpClient } from 'effect/http';
 import { HttpApiClient } from 'effect/http-api';
+import GtfsRealtimeBindings from 'gtfs-realtime-bindings';
 import { afterEach, beforeEach } from 'vitest';
 import { AIRPORT_ZOOM } from '../src/airports.ts';
 import { Api } from '../src/api.ts';
@@ -23,7 +24,7 @@ import { makeShipSource } from '../src/ingest/ships.ts';
 import { IngestError } from '../src/ingest/source.ts';
 import { parseTransitFeeds } from '../src/ingest/transit-feeds.ts';
 import { TRANSIT_ZOOM } from '../src/transit.ts';
-import { fakeHttp, fixture, recorded, type Upstream } from './support.ts';
+import { fakeHttp, fixture, fixtureBytes, recorded, type Upstream } from './support.ts';
 
 const BASE = 'http://atlas.localhost';
 
@@ -81,6 +82,16 @@ const setup = (upstream: Upstream = openMeteo) =>
 const quakes = parseQuakes(
   Schema.decodeSync(Schema.fromJsonString(FeatureCollection))(fixture('usgs.geojson')),
 );
+
+const { transit_realtime } = GtfsRealtimeBindings;
+/** A GTFS-realtime feed with every vehicle's position time set to now. */
+const restamped = (bytes: Uint8Array): Uint8Array<ArrayBuffer> => {
+  const message = transit_realtime.FeedMessage.decode(bytes);
+  const now = Math.floor(Date.now() / 1000);
+  message.header.timestamp = now;
+  for (const entity of message.entity) if (entity.vehicle) entity.vehicle.timestamp = now;
+  return new Uint8Array(transit_realtime.FeedMessage.encode(message).finish());
+};
 
 const parsedOrThrow = <A>(parsed: A | IngestError): A => {
   if (parsed instanceof IngestError) throw parsed;
@@ -228,6 +239,8 @@ describe('api', () => {
       assert.deepStrictEqual(global.data.airports.ident, ['KBOS', 'EGLL', 'KBED']);
       assert.strictEqual(global.count, 3);
       assert.deepStrictEqual(global.data.runways.airport, []);
+      // Links come with the tile, like runways.
+      assert.deepStrictEqual(global.data.airports.wikipedia, ['', '', '']);
       const response = yield* get('/api/feeds/airports');
       assert.strictEqual(response.headers.get('etag'), `"${version}"`);
       assert.strictEqual(
@@ -245,6 +258,7 @@ describe('api', () => {
       assert.includeMembers([...tile.data.airports.ident], ['KBOS', 'KBED', '04MA', '01MA']);
       assert.notInclude([...tile.data.airports.ident], 'EGLL');
       const bos = tile.data.airports.ident.indexOf('KBOS');
+      assert.strictEqual(tile.data.airports.website[bos], 'http://www.massport.com/logan/');
       assert.strictEqual(tile.data.runways.airport.filter((a) => a === bos).length, 6);
       assert.strictEqual(
         (yield* get(`/api/live/airports/8/${boston.x}/${boston.y}`)).headers.get('cache-control'),
@@ -257,7 +271,12 @@ describe('api', () => {
 
   it.effect('serves transit vehicles by tile once the feed catalog is in', () =>
     Effect.gen(function* () {
-      const { client, store, get } = yield* setup();
+      // The API runs on the real clock: the recorded vehicles, re-stamped as just reported.
+      const { client, store, get } = yield* setup((call) =>
+        call.url.host === 'cdn.mbta.com'
+          ? new Response(restamped(fixtureBytes('mbta-vehicles.pb')))
+          : openMeteo(call),
+      );
       const boston = tileAt(TRANSIT_ZOOM, -71.1516, 42.336);
       const before = yield* Effect.flip(client.live.transit({ params: { z: TRANSIT_ZOOM, ...boston } }));
       assert.strictEqual(before._tag, 'FeedNotReady');
